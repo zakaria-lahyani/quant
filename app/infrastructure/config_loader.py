@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from app.infrastructure.configs.config_definitions import SystemConfig
 
 
-class ConfigLoader:
+class AccountConfigLoader:
     """Loader for system configuration from YAML files."""
 
     def __init__(self, config_dir: Optional[Path] = None):
@@ -47,7 +47,7 @@ class ConfigLoader:
         config_dir = config_path_obj.parent
         filename = config_path_obj.name
 
-        loader = ConfigLoader(config_dir)
+        loader = AccountConfigLoader(config_dir)
         return loader.load_from_yaml(filename)
 
     def load_from_yaml(self, filename: str = "services.yaml") -> SystemConfig:
@@ -237,6 +237,6 @@ def load_config(config_file: str = "services.yaml", config_dir: Optional[Path] =
         >>> print(config.logging.level)
         INFO
     """
-    loader = ConfigLoader(config_dir)
+    loader = AccountConfigLoader(config_dir)
     return loader.load_from_yaml(config_file)
 

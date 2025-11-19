@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.clients.mt5.client import create_client_with_retry
 from app.data.data_manger import DataSourceManager
-from app.infrastructure.config_loader import ConfigLoader, LoadEnvironmentVariables
+from app.infrastructure.config_loader import AccountConfigLoader, LoadEnvironmentVariables
 from app.infrastructure.logging import LoggingManager
 from app.utils.date_helper import DateHelper
 
@@ -24,7 +24,7 @@ def initialize_logging(config_path: str = "configs/services.yaml") -> LoggingMan
     """
     try:
         # Try to load logging config from file
-        system_config = ConfigLoader.load(config_path)
+        system_config = AccountConfigLoader.load(config_path)
         logging_manager = LoggingManager.from_config(system_config)
     except FileNotFoundError:
         # Fallback to default configuration
@@ -65,7 +65,7 @@ def main():
     # Load system configuration
     logger.info(f"Loading system configuration ")
     try:
-        system_config = ConfigLoader.load(config_path)
+        system_config = AccountConfigLoader.load(config_path)
         logger.info("System configuration loaded")
 
         # MT5 Client (shared)
