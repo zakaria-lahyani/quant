@@ -1,0 +1,22 @@
+# URSI
+ursi:
+  src: close
+  length: 24
+  smooth_length: 24
+
+# SUPERTREND
+supertrend:
+  period: 21
+  multiplier: 3.0
+
+# ICHIMOKU
+ichimoku:
+  tenkan_period: 9
+  kijun_period: 26
+  senkou_b_period: 52
+  chikou_shift: 20
+
+# SAR
+sar:
+  acceleration: 0.01
+  max_acceleration: 0.1

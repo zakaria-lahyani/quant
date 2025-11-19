@@ -1,0 +1,43 @@
+# Manual trading strategy configuration for BTCUSD
+# This configuration is used when triggering manual entry/exit signals via API
+name: "manual"
+meta:
+  version: "1.0.0"
+  author: "system"
+  description: "Manual trading configuration - used for API-triggered signals"
+  created_at: "2025-11-17T00:00:00Z"
+
+# Required for strategy loading, but not used for manual signals
+# (manual signals don't evaluate conditions)
+timeframes: ["1"]
+
+
+
+# RISK CONFIGURATION - This is what matters for manual trading!
+risk:
+  # Position sizing method
+  position_sizing:
+    type: fixed         # Options: fixed, percentage, monetary
+    value: 0.01        # 0.01 BTC per trade (adjust based on account size)
+
+  # Stop Loss configuration
+  sl:
+    type: monetary      # Options: fixed (pips), monetary ($), atr, percentage
+    value: 500.0        # $500 risk per trade
+
+  # Take Profit configuration
+  tp:
+    type: multi_target  # Options: fixed, monetary, rr (risk:reward), multi_target
+    targets:
+      - value: 1.0      # 1:1 R:R
+        percent: 50     # Close 50% of position
+        move_stop: true # Move SL to breakeven
+      - value: 2.0      # 2:1 R:R
+        percent: 50     # Close remaining 50%
+        move_stop: false
+
+# Optional: Override scaling configuration for manual trades
+# scaling:
+#   enabled: true
+#   num_entries: 2
+#   distribution: [60, 40]
