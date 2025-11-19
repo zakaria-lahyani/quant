@@ -1,0 +1,477 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Trading Strategy Configuration",
+  "description": "Complete schema for defining trading strategies with complex rules and risk management",
+  "type": "object",
+  "required": ["name", "timeframes", "risk"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Semantic version of the strategy"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "author": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "activation": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "schedule": {
+          "type": "object",
+          "properties": {
+            "days": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+              }
+            },
+            "hours": {
+              "type": "string",
+              "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$"
+            },
+            "session_handling": {
+              "type": "string",
+              "enum": ["close_all", "hold", "partial_close"]
+            }
+          }
+        }
+      }
+    },
+    "timeframes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["1", "5", "15", "30", "60", "240", "1d"]
+      },
+      "minItems": 1
+    },
+    "entry": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 2,
+      "properties": {
+        "long": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["all", "any", "complex"],
+              "default": "all"
+            },
+            "conditions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/condition"
+              },
+              "minItems": 1
+            },
+            "tree": {
+              "$ref": "#/definitions/conditionTree"
+            }
+          },
+          "required": ["mode"],
+          "anyOf": [
+            { "required": ["conditions"] },
+            { "required": ["tree"] }
+          ],
+
+          "dependencies": {
+            "tree": {
+              "oneOf": [
+                {
+                  "properties": {
+                    "mode": { "const": "complex" }
+                  },
+                  "required": ["tree"]
+                },
+                {
+                  "properties": {
+                    "mode": { "not": { "const": "complex" } }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "short":{
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["all", "any", "complex"],
+              "default": "all"
+            },
+            "conditions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/condition"
+              },
+              "minItems": 1
+            },
+            "tree": {
+              "$ref": "#/definitions/conditionTree"
+            }
+          },
+          "required": ["mode"],
+          "anyOf": [
+            { "required": ["conditions"] },
+            { "required": ["tree"] }
+          ],
+
+          "dependencies": {
+            "tree": {
+              "oneOf": [
+                {
+                  "properties": {
+                    "mode": { "const": "complex" }
+                  },
+                  "required": ["tree"]
+                },
+                {
+                  "properties": {
+                    "mode": { "not": { "const": "complex" } }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "exit": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 2,
+      "properties": {
+        "long": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["all", "any", "complex"],
+              "default": "any"
+            },
+            "conditions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/condition"
+              }
+            },
+            "tree": {
+              "$ref": "#/definitions/conditionTree"
+            },
+            "time_based": {
+              "type": "object",
+              "properties": {
+                "max_duration": {
+                  "type": "string",
+                  "pattern": "^\\d+[mhdw]$"
+                },
+                "min_duration": {
+                  "type": "string",
+                  "pattern": "^\\d+[mhdw]$"
+                }
+              }
+            },
+            "profit_guard": {
+              "type": "object",
+              "properties": {
+                "max_drawdown": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "trailing": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": ["mode"],
+          "anyOf": [
+            { "required": ["conditions"] },
+            { "required": ["tree"] }
+          ],
+          "dependencies": {
+            "tree": {
+              "oneOf": [
+                {
+                  "properties": {
+                    "mode": { "const": "complex" }
+                  },
+                  "required": ["tree"]
+                },
+                {
+                  "properties": {
+                    "mode": { "not": { "const": "complex" } }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "short": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["all", "any", "complex"],
+              "default": "any"
+            },
+            "conditions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/condition"
+              }
+            },
+            "tree": {
+              "$ref": "#/definitions/conditionTree"
+            },
+            "time_based": {
+              "type": "object",
+              "properties": {
+                "max_duration": {
+                  "type": "string",
+                  "pattern": "^\\d+[mhdw]$"
+                },
+                "min_duration": {
+                  "type": "string",
+                  "pattern": "^\\d+[mhdw]$"
+                }
+              }
+            },
+            "profit_guard": {
+              "type": "object",
+              "properties": {
+                "max_drawdown": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "trailing": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": ["mode"],
+          "anyOf": [
+            { "required": ["conditions"] },
+            { "required": ["tree"] }
+          ],
+          "dependencies": {
+            "tree": {
+              "oneOf": [
+                {
+                  "properties": {
+                    "mode": { "const": "complex" }
+                  },
+                  "required": ["tree"]
+                },
+                {
+                  "properties": {
+                    "mode": { "not": { "const": "complex" } }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "required": ["sl", "tp"],
+      "properties": {
+        "position_sizing": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["fixed", "percentage", "volatility"]
+            },
+            "value": {
+              "type": "number",
+              "minimum": 0
+            },
+            "atr_distance": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "sl": {
+          "$ref": "#/definitions/stopLoss"
+        },
+        "tp": {
+          "$ref": "#/definitions/takeProfit"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "conditionTree": {
+      "type": "object",
+      "required": ["operator", "conditions"],
+      "properties": {
+        "operator": {
+          "type": "string",
+          "enum": ["and", "or", "not"]
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "$ref": "#/definitions/condition" },
+              { "$ref": "#/definitions/conditionTree" }
+            ]
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "operator": { "const": "not" }
+        }
+      },
+      "then": {
+        "properties": {
+          "conditions": { "maxItems": 1 }
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "required": ["signal", "operator", "timeframe"],
+      "properties": {
+        "signal": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string",
+          "enum": [
+            "==",
+            "!=",
+            "<",
+            "<=",
+            ">",
+            ">=",
+            "crosses_above",
+            "crosses_below",
+            "in",
+            "not_in",
+            "changes_to",
+            "remains"
+          ]
+        },
+        "value": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string" },
+            { "type": "boolean" },
+            { "type": "array" }
+          ]
+        },
+        "timeframe": {
+          "type": "string",
+          "enum": ["1", "5", "15", "30", "60", "240", "1d"]
+        },
+        "lookback": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "required_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.8
+        }
+      }
+    },
+    "stopLoss": {
+      "type": "object",
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "const": "fixed" },
+            "value": { "type": "number", "minimum": 0 }
+          },
+          "required": ["type", "value"]
+        },
+        {
+          "properties": {
+            "type": { "const": "indicator" },
+            "source": { "type": "string" },
+            "offset": { "type": "number", "default": 0 }
+          },
+          "required": ["type", "source"]
+        },
+        {
+          "properties": {
+            "type": { "const": "trailing" },
+            "step": { "type": "number", "minimum": 0 },
+            "activation_price": { "type": "number" },
+            "cap": { "type": "number" }
+          },
+          "required": ["type", "step"]
+        },
+        {
+          "properties": {
+            "type": { "const": "monetary" },
+            "value": { "type": "number", "minimum": 0.01 },
+            "trailing": { "type": "boolean", "default": false }
+          },
+          "required": ["type", "value"]
+        }
+      ]
+    },
+    "takeProfit": {
+      "type": "object",
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "const": "fixed" },
+            "value": { "type": "number", "minimum": 0 }
+          },
+          "required": ["type", "value"]
+        },
+        {
+          "properties": {
+            "type": { "const": "multi_target" },
+            "targets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["value", "percent"],
+                "properties": {
+                  "value": { "type": "number", "minimum": 0 },
+                  "percent": { "type": "number", "minimum": 0, "maximum": 100 },
+                  "move_stop": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          },
+          "required": ["type", "targets"]
+        }
+      ]
+    }
+  }
+}
