@@ -185,6 +185,7 @@ class LoadEnvironmentVariables:
         self.API_TIMEOUT = ""
 
         self.CONF_FOLDER_PATH = ""
+        self.CONF_ACCOUNT= ""
 
         self.TRADE_MODE = ""
         self.BACKTEST_DATA_PATH = ""
@@ -210,13 +211,13 @@ class LoadEnvironmentVariables:
 
         # Paths
         self.CONF_FOLDER_PATH = os.getenv('CONF_FOLDER_PATH')
+        self.CONF_ACCOUNT = os.getenv('CONF_ACCOUNT')
         self.BACKTEST_DATA_PATH = os.getenv('BACKTEST_DATA_PATH')
 
         # Trading Mode
         self.TRADE_MODE = os.getenv('TRADE_MODE', 'live')
 
         # Time Configuration
-        self.DEFAULT_CLOSE_TIME = os.getenv('DEFAULT_CLOSE_TIME')
         self.NEWS_RESTRICTION_DURATION = int(os.getenv('NEWS_RESTRICTION_DURATION', '5'))
         self.MARKET_CLOSE_RESTRICTION_DURATION = int(os.getenv('MARKET_CLOSE_RESTRICTION_DURATION', '5'))
 

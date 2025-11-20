@@ -96,13 +96,13 @@ class SymbolConfig(BaseModel):
     scaling_type: str
     entry_spacing: float
     risk_per_group: float
+    default_close_time: str
     timeframes: List[str]
 
 class TradingConfig(BaseModel):
     """Configuration for trading parameters."""
 
     symbols: List[SymbolConfig]
-    timeframes: Optional[List[str]] = None  # Optional: can be defined per symbol instead
 
     @field_validator("symbols")
     @classmethod
@@ -117,13 +117,6 @@ class TradingConfig(BaseModel):
 
         return v
 
-    @field_validator("timeframes")
-    @classmethod
-    def validate_timeframes(cls, v: Optional[List[str]]) -> Optional[List[str]]:
-        """Validate timeframes are not empty if provided."""
-        if v is not None and not v:
-            raise ValueError("timeframes list cannot be empty if provided")
-        return v
 
 
 class AccountStopLossConfig(BaseModel):

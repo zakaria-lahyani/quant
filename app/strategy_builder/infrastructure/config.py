@@ -5,8 +5,8 @@ Configuration management for the strategy engine.
 import yaml
 from typing import Any, Dict, List
 
+from app.infrastructure.config_loader import YamlConfigurationManager
 from app.strategy_builder.core.domain.protocols import ConfigurationManager, ValidationService
-from app.utils.config import YamlConfigurationManager
 
 
 
