@@ -22,38 +22,54 @@ class OrderExecutor:
         trader: LiveTrader,
         risk_calculator: RiskCalculator,
         symbol: str,
+        broker_symbol: Optional[str] = None,
         event_bus: Optional[Any] = None,
         logger: logging.Logger = None
     ):
         self.trader = trader
         self.risk_calculator = risk_calculator
-        self.symbol = symbol
+        self.symbol = symbol  # Display symbol for logging
+        self.broker_symbol = broker_symbol or symbol  # Broker API symbol for orders
         self.event_bus = event_bus
         self.logger = logger or logging.getLogger(self.__class__.__name__)
     
     def execute_entries(self, entries: List[EntryDecision]) -> None:
         """
         Execute entry orders.
-        
+
         Args:
             entries: List of entry decisions to execute
         """
         if not entries:
             self.logger.debug("No entry signals to process")
             return
-        
-        current_price = self.trader.get_current_price(self.symbol)
+
+        self.logger.info(f"🔍 Executing {len(entries)} entry decision(s)")
+
+        # Use broker_symbol for API calls
+        current_price = self.trader.get_current_price(self.broker_symbol)
+        self.logger.info(f"🔍 Current {self.symbol} price: {current_price}")
+
         risk_entries = self.risk_calculator.process_entries(entries, current_price)
-        
-        for risk_entry in risk_entries:
+        self.logger.info(f"🔍 RiskCalculator created {len(risk_entries)} risk entry group(s)")
+
+        for idx, risk_entry in enumerate(risk_entries):
+            self.logger.info(
+                f"🔍 Group {idx+1}: {len(risk_entry.limit_orders)} orders, "
+                f"sizes={[round(s, 3) for s in risk_entry.scaled_sizes]}, "
+                f"prices={[round(p, 2) for p in risk_entry.entry_prices]}"
+            )
             self._execute_risk_entry(risk_entry)
     
     def _execute_risk_entry(self, risk_entry: RiskEntryResult) -> None:
         """Execute a single risk entry group."""
         self.logger.info(f"Processing risk entry for group {risk_entry.group_id[:8]}")
         self.logger.info(f"Creating {len(risk_entry.limit_orders)} orders")
-        
+
         try:
+            # Replace symbols in orders with broker_symbol for API calls
+            self._replace_symbols_in_orders(risk_entry)
+
             # Open the orders and check results
             results = self.trader.open_pending_order(trade=risk_entry)
             
@@ -168,3 +184,18 @@ class OrderExecutor:
         """
         self.event_bus = event_bus
         self.logger.debug("Event bus configured for OrderExecutor")
+
+    def _replace_symbols_in_orders(self, risk_entry: RiskEntryResult) -> None:
+        """
+        Replace display symbols with broker symbols in all orders.
+
+        This ensures that orders sent to the MT5 API use the correct broker-specific
+        symbol names (e.g., 'XAUUSD.pro' for ACG broker instead of 'XAUUSD').
+
+        Args:
+            risk_entry: Risk entry result containing limit orders
+        """
+        for order in risk_entry.limit_orders:
+            if 'symbol' in order and order['symbol'] == self.symbol:
+                order['symbol'] = self.broker_symbol
+                self.logger.debug(f"Replaced symbol '{self.symbol}' with broker symbol '{self.broker_symbol}' in order")

@@ -61,10 +61,16 @@ def format_datetime(dt: Optional[Union[datetime, str]]) -> Optional[str]:
 
 
 def validate_symbol(symbol: str) -> str:
-    """Validate and normalize symbol name."""
+    """
+    Validate symbol name.
+
+    NOTE: Does NOT force uppercase - preserves broker-specific case sensitivity.
+    E.g., ACG broker may use 'XAUUSD.pro' while FTMO uses 'XAUUSD'.
+    """
     if not symbol or not isinstance(symbol, str):
         raise ValueError("Symbol must be a non-empty string")
-    return symbol.upper().strip()
+    # Only strip whitespace - preserve case for broker compatibility
+    return symbol.strip()
 
 
 def validate_volume(volume: float) -> float:

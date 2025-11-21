@@ -1,0 +1,91 @@
+# Trading System Services Configuration - Broker A
+# This file configures the event-driven trading system services for Broker A
+
+# Service-specific configuration
+services:
+  data_fetching:
+    enabled: true
+    fetch_interval: 30  # seconds between data fetches (30s to avoid API rate limits)
+    retry_attempts: 3
+    candle_index: 2  # which candle to fetch (1 = most recent closed)
+    nbr_bars: 2  # number of bars to fetch per request
+
+  indicator_calculation:
+    enabled: true
+    recent_rows_limit: 6  # number of recent rows to keep
+    track_regime_changes: true  # track and publish regime changes
+    store_indicators_in_redis: true  # store computed indicators in Redis for monitoring
+    redis_max_recent_rows: 50  # number of recent indicator rows to keep in Redis
+    redis_ttl_seconds: 3600  # TTL for Redis indicator data (1 hour)
+
+  strategy_evaluation:
+    enabled: true
+    evaluation_mode: "on_new_candle"  # when to evaluate strategies
+    min_rows_required: 3  # minimum rows needed for evaluation
+
+  trade_execution:
+    enabled: true
+    execution_mode: "immediate"  # "immediate" or "batch"
+    batch_size: 1  # only used in batch mode
+
+# EventBus configuration
+event_bus:
+  mode: synchronous  # synchronous or asynchronous
+  event_history_limit: 1000  # max events to keep in history
+  log_all_events: false  # log every event for debugging
+
+# Orchestrator configuration
+orchestrator:
+  enable_auto_restart: true  # restart services on failure
+  health_check_interval: 60  # seconds between health checks
+  status_log_interval: 10  # log status every N iterations
+
+# Logging configuration
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: json  # json or text
+  correlation_ids: true  # add correlation IDs to track event flow
+  file_output: false  # write logs to file
+  log_file: "logs/trading_system.log"
+
+# Trading configuration
+trading:
+  symbols:
+    - symbol: BTCUSD  # Display name (used internally and in logs)
+      # broker_symbol: BTCUSD  # Optional: defaults to symbol if not specified
+      # path_symbol: btcusd  # Optional: defaults to lowercase symbol without suffixes
+      pip_value: 100
+      position_split: 2
+      scaling_type: equal
+      entry_spacing: 10
+      risk_per_group: 1000
+      default_close_time: 23:40:00+02:00
+      timeframes: ["1", "5", "15", "30", "60", "240"]
+      order_delay_seconds: 0.5  # Delay between submitting split orders (seconds)
+    - symbol: XAUUSD  # Display name (used internally and in logs)
+      # broker_symbol: XAUUSD  # Optional: defaults to symbol if not specified
+      # path_symbol: xauusd  # Optional: defaults to lowercase symbol without suffixes
+      pip_value: 100
+      position_split: 4
+      scaling_type: equal
+      entry_spacing: 0.1
+      risk_per_group: 1000
+      default_close_time: 23:50:00+02:00
+      timeframes: ["1", "5", "15", "30", "60", "240"]
+      order_delay_seconds: 0.5  # Delay between submitting split orders (seconds)
+
+# Risk management
+risk:
+  max_positions: 10  # maximum open positions
+  max_position_size: 1.0  # maximum lot size per position
+
+  # Account-level stop loss (protects entire account across all symbols)
+  account_stop_loss:
+    enabled: true  # Enable account-level stop loss monitoring
+    daily_loss_limit: 2000.0  # Max daily loss in account currency
+    max_drawdown_pct: 4.0  # Max drawdown from peak (percentage)
+    close_positions_on_breach: true  # Close all positions when limit hit
+    stop_trading_on_breach: true  # Stop all trading services when limit hit
+    cooldown_period_minutes: 1400  # Cooldown before allowing trading again
+    daily_reset_time: "00:00:00"  # Time to reset daily P&L
+    timezone_offset: "+02:00"  # Timezone offset for reset time

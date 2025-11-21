@@ -1,0 +1,20 @@
+
+# SUPERTREND
+supertrend_fast:
+  period: 10
+  multiplier: 3.0
+
+supertrend:
+  period: 14
+  multiplier: 3.0
+
+supertrend_slow:
+  period: 21
+  multiplier: 3.0
+
+# ICHIMOKU
+ichimoku:
+  tenkan_period: 9
+  kijun_period: 35
+  senkou_b_period: 60
+  chikou_shift: 20

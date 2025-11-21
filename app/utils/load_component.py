@@ -12,13 +12,14 @@ from app.regime.regime_manager import RegimeManager
 from app.trader.executor_builder import ExecutorBuilder
 
 
-def load_strategies_for_symbol(folder_path: str, symbol: str, logger: logging.Logger):
+def load_strategies_for_symbol(folder_path: str, symbol: str, path_symbol: str, logger: logging.Logger):
     """
     Load strategy engine for a specific symbol.
 
     Args:
         folder_path: Base configuration folder path
-        symbol: Trading symbol (e.g., "XAUUSD")
+        symbol: Trading symbol for display (e.g., "XAUUSD")
+        path_symbol: Symbol name for file paths (e.g., "xauusd")
         logger: Logger instance
 
     Returns:
@@ -29,7 +30,8 @@ def load_strategies_for_symbol(folder_path: str, symbol: str, logger: logging.Lo
 
     logger.info(f"  Loading strategies for {symbol}...")
 
-    strategy_folder = Path(folder_path) / "strategies" / symbol.lower()
+    # Use path_symbol for folder lookup (e.g., "xauusd" for both "XAUUSD" and "XAUUSD.pro")
+    strategy_folder = Path(folder_path) / "strategies" / path_symbol
 
     if not strategy_folder.exists():
         logger.warning(f"  No strategy folder found for {symbol} at {strategy_folder}")
@@ -37,7 +39,7 @@ def load_strategies_for_symbol(folder_path: str, symbol: str, logger: logging.Lo
         # Return empty engine or handle as needed
         return StrategyEngineFactory.create_engine(
             config_paths=[],
-            logger_name=f"trading-engine-{symbol.lower()}"
+            logger_name=f"trading-engine-{path_symbol}"
         )
 
     strategy_paths = list_files_in_folder(str(strategy_folder))
@@ -49,19 +51,20 @@ def load_strategies_for_symbol(folder_path: str, symbol: str, logger: logging.Lo
 
     engine = StrategyEngineFactory.create_engine(
         config_paths=strategy_paths,
-        logger_name=f"trading-engine-{symbol.lower()}"
+        logger_name=f"trading-engine-{path_symbol}"
     )
 
     return engine
 
 
-def load_indicators_for_symbol(folder_path: str, symbol: str, logger: logging.Logger) -> Dict:
+def load_indicators_for_symbol(folder_path: str, symbol: str, path_symbol: str, logger: logging.Logger) -> Dict:
     """
     Load indicator configuration for a specific symbol.
 
     Args:
         folder_path: Base configuration folder path
-        symbol: Trading symbol (e.g., "XAUUSD")
+        symbol: Trading symbol for display (e.g., "XAUUSD")
+        path_symbol: Symbol name for file paths (e.g., "xauusd")
         logger: Logger instance
 
     Returns:
@@ -73,7 +76,8 @@ def load_indicators_for_symbol(folder_path: str, symbol: str, logger: logging.Lo
     logger.info(f"  Loading indicators for {symbol}...")
 
     yaml_manager = YamlConfigurationManager()
-    indicator_folder = Path(folder_path) / "indicators" / symbol.lower()
+    # Use path_symbol for folder lookup (e.g., "xauusd" for both "XAUUSD" and "XAUUSD.pro")
+    indicator_folder = Path(folder_path) / "indicators" / path_symbol
 
     if not indicator_folder.exists():
         logger.warning(f"  No indicator folder found for {symbol} at {indicator_folder}")
@@ -134,6 +138,7 @@ def load_all_components_for_symbols(
         strategy_engine = load_strategies_for_symbol(
             folder_path=config_path,
             symbol=symbolConfig.symbol,
+            path_symbol=symbolConfig.path_symbol,
             logger=logger
         )
         # Create entry manager
@@ -156,6 +161,7 @@ def load_all_components_for_symbols(
         indicator_config = load_indicators_for_symbol(
             folder_path=config_path,
             symbol=symbolConfig.symbol,
+            path_symbol=symbolConfig.path_symbol,
             logger=logger
         )
 
@@ -169,13 +175,13 @@ def load_all_components_for_symbols(
                 if tf not in indicator_config:
                     indicator_config[tf] = {}
 
-        # Fetch historical data
-        logger.info(f"  Fetching historical data for {symbolConfig.symbol}...")
+        # Fetch historical data (use broker_symbol for API calls)
+        logger.info(f"  Fetching historical data for {symbolConfig.symbol} (broker symbol: {symbolConfig.broker_symbol})...")
         historicals = {}
         for tf in timeframes:
             try:
                 historicals[tf] = data_source.get_historical_data(
-                    symbol=symbolConfig.symbol,
+                    symbol=symbolConfig.broker_symbol,  # Use broker-specific symbol name for API
                     timeframe=tf
                 )
                 logger.info(f"   Loaded {len(historicals[tf])} bars for {symbolConfig.symbol} {tf}")
@@ -212,13 +218,15 @@ def load_all_components_for_symbols(
                 self.MARKET_CLOSE_RESTRICTION_DURATION = env_config.MARKET_CLOSE_RESTRICTION_DURATION
 
                 # Symbol-specific config (from services.yaml)
-                self.SYMBOL = symbol_config.symbol
+                self.SYMBOL = symbol_config.symbol  # Display symbol for internal use
+                self.BROKER_SYMBOL = symbol_config.broker_symbol  # Broker API symbol for orders
                 self.PIP_VALUE = symbol_config.pip_value
                 self.POSITION_SPLIT = symbol_config.position_split
                 self.SCALING_TYPE = symbol_config.scaling_type
                 self.ENTRY_SPACING = symbol_config.entry_spacing
                 self.RISK_PER_GROUP = symbol_config.risk_per_group
                 self.DEFAULT_CLOSE_TIME = symbol_config.default_close_time
+                self.ORDER_DELAY_SECONDS = symbol_config.order_delay_seconds
 
                 # Risk config (from services.yaml)
                 self.DAILY_LOSS_LIMIT = system_config.risk.account_stop_loss.daily_loss_limit
@@ -244,6 +252,7 @@ def load_all_components_for_symbols(
             'trade_executor': trade_executor,
             'timeframes': timeframes,
             'historicals': historicals,
+            'broker_symbol': symbolConfig.broker_symbol,  # For MT5 API calls
         }
 
         logger.info(f"  ✓ All components loaded for {symbolConfig.symbol}")

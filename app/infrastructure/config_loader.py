@@ -180,6 +180,11 @@ class YamlConfigurationManager:
 class LoadEnvironmentVariables:
     def __init__(self, conf_path):
         self.conf_path = conf_path
+
+        # App identification (for multi-instance deployments)
+        self.APP_NAME = "default"
+        self.APP_TAG = "DEFAULT"
+
         self.ACCOUNT_TYPE = ""
         self.API_BASE_URL = ""
         self.API_TIMEOUT = ""
@@ -193,15 +198,29 @@ class LoadEnvironmentVariables:
         self.DEFAULT_CLOSE_TIME = ""
         self.NEWS_RESTRICTION_DURATION = 5
         self.MARKET_CLOSE_RESTRICTION_DURATION = 5
+
+        # Redis connection parameters (to external Redis Docker container)
+        self.REDIS_HOST = "localhost"
+        self.REDIS_PORT = 6379
+        self.REDIS_DB = 0
+        self.REDIS_PASSWORD = None
+
         self._load_env_variables()
 
     def _load_env_variables(self):
-        """Load environment variables from the .env file."""
+        """Load environment variables from the .env file or use existing env vars."""
         dotenv_path = self.conf_path
-        if not os.path.exists(dotenv_path):
-            raise FileNotFoundError(f"{dotenv_path} file not found.")
 
-        load_dotenv(dotenv_path)
+        # Load from .env file if it exists, otherwise use existing environment variables
+        if os.path.exists(dotenv_path):
+            load_dotenv(dotenv_path)
+        # If no .env file but we have key env vars set (e.g., from Docker), continue
+        elif not os.getenv('APP_NAME'):
+            raise FileNotFoundError(f"{dotenv_path} file not found and no environment variables set.")
+
+        # App Identification
+        self.APP_NAME = os.getenv('APP_NAME', 'default')
+        self.APP_TAG = os.getenv('APP_TAG', 'DEFAULT')
 
         # API Configuration
         self.ACCOUNT_TYPE = os.getenv('ACCOUNT_TYPE')
@@ -220,6 +239,12 @@ class LoadEnvironmentVariables:
         # Time Configuration
         self.NEWS_RESTRICTION_DURATION = int(os.getenv('NEWS_RESTRICTION_DURATION', '5'))
         self.MARKET_CLOSE_RESTRICTION_DURATION = int(os.getenv('MARKET_CLOSE_RESTRICTION_DURATION', '5'))
+
+        # Redis Connection (external Docker container)
+        self.REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+        self.REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
+        self.REDIS_DB = int(os.getenv('REDIS_DB', '0'))
+        self.REDIS_PASSWORD = os.getenv('REDIS_PASSWORD') or None
 
 
 def load_config(config_file: str = "services.yaml", config_dir: Optional[Path] = None) -> SystemConfig:

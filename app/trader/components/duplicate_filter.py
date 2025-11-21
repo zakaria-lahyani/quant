@@ -43,20 +43,12 @@ class DuplicateFilter:
         self.logger.info(f"Current open positions: {len(open_positions)}")
         self.logger.info(f"Current pending orders: {len(pending_orders)}")
         
+        # Only check against open positions, not pending orders
+        # This allows position splitting with multiple pending orders
         existing_trades = self._get_existing_trades(open_positions, pending_orders)
-        
-        # Convert to direction-based sets for filtering
-        existing_positions_directions = {
-            (pos.magic, self._get_direction_from_type(pos.type)) 
-            for pos in open_positions
-        }
-        existing_pending_directions = {
-            (order.magic, self._get_direction_from_type(order.type)) 
-            for order in pending_orders
-        }
-        
+
         filtered_entries = self._filter_against_existing(
-            entries, existing_trades, existing_positions_directions, existing_pending_directions
+            entries, existing_trades
         )
         
         initial_count = len(entries)
@@ -70,69 +62,68 @@ class DuplicateFilter:
         return filtered_entries
     
     def _get_existing_trades(
-        self, 
-        open_positions: List[Position], 
+        self,
+        open_positions: List[Position],
         pending_orders: List[Order]
     ) -> Set[Tuple[int, str]]:
-        """Get set of existing trades as (magic, direction) tuples."""
-        # Debug: Show raw order types before conversion
-        if pending_orders:
-            sample_orders = pending_orders[:3]  # Show first 3 for debugging
-            for i, order in enumerate(sample_orders):
-                self.logger.info(f"DEBUG Order {i+1}: type={repr(order.type)} (type: {type(order.type).__name__})")
-        
+        """
+        Get set of existing trades as (magic, direction) tuples.
+
+        NOTE: We only check open positions, NOT pending orders!
+        This allows position splitting to work - multiple pending orders
+        with the same magic number are allowed (they're part of the same entry group).
+        We only prevent duplicate entries when there's already an OPEN position.
+        """
         existing_positions = {
-            (pos.magic, self._get_direction_from_type(pos.type)) 
+            (pos.magic, self._get_direction_from_type(pos.type))
             for pos in open_positions
         }
-        
-        existing_pending = {
-            (order.magic, self._get_direction_from_type(order.type)) 
-            for order in pending_orders
-        }
-        
-        # Debug: Show existing trades
+
+        # Debug: Show existing positions only
         if existing_positions:
             self.logger.info(f"Existing positions (magic, direction): {existing_positions}")
-        if existing_pending:
-            self.logger.info(f"Existing pending (magic, direction): {existing_pending}")
-        
-        return existing_positions | existing_pending
+
+        self.logger.info(f"Pending orders count: {len(pending_orders)} (not checked for duplicates)")
+
+        # Return only open positions - pending orders with same magic are allowed!
+        return existing_positions
     
     def _filter_against_existing(
-        self, 
-        entries: List[EntryDecision], 
-        existing_trades: Set[Tuple[int, str]],
-        existing_positions: Set[Tuple[int, str]],
-        existing_pending: Set[Tuple[int, str]]
+        self,
+        entries: List[EntryDecision],
+        existing_trades: Set[Tuple[int, str]]
     ) -> List[EntryDecision]:
-        """Filter entries against existing trades."""
+        """
+        Filter entries against existing open positions.
+
+        NOTE: We only block duplicates if there's an OPEN POSITION.
+        Pending orders with the same magic are allowed (they're split orders).
+        """
         filtered_entries = []
-        
+
         for entry in entries:
             entry_direction = self._get_direction_from_signal(entry.entry_signals)
-            
+
             if entry_direction is None:
                 self.logger.error(f"Unknown entry signal direction: {entry.entry_signals}")
                 continue
-                
+
             trade_key = (entry.magic, entry_direction)
-            
+
             self.logger.info(f"Checking entry: magic={entry.magic}, direction={entry_direction}, signal={entry.entry_signals}")
-            
+
             if trade_key not in existing_trades:
                 filtered_entries.append(entry)
                 self.logger.info(
-                    f" Entry ALLOWED: {entry.strategy_name} {entry.direction} "
+                    f"✅ Entry ALLOWED: {entry.strategy_name} {entry.direction} "
                     f"(magic={entry.magic}, direction={entry_direction})"
                 )
             else:
-                source = "positions" if trade_key in existing_positions else "pending orders"
                 self.logger.warning(
-                    f" Entry BLOCKED (duplicate): {entry.strategy_name} {entry.direction} "
-                    f"(magic={entry.magic}, direction={entry_direction}) - Already exists in {source}"
+                    f"❌ Entry BLOCKED (duplicate): {entry.strategy_name} {entry.direction} "
+                    f"(magic={entry.magic}, direction={entry_direction}) - Open position already exists"
                 )
-        
+
         return filtered_entries
     
     def _get_order_type(self, entry_signal: str) -> int:

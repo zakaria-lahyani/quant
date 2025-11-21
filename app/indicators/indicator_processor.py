@@ -186,11 +186,16 @@ class IndicatorProcessor:
             # Step 1: Compute indicators
             row_with_indicators = self.compute_indicators(timeframe, row)
 
-            # Step 2: Add regime data if provided
+            # Step 2: Add regime data (always add fields, use defaults if not provided)
             if regime_data:
                 row_with_indicators['regime'] = regime_data.get('regime', 'unknown')
-                row_with_indicators['regime_confidence'] = regime_data.get('regime_confidence', 0.0)
+                row_with_indicators['regime_confidence'] = regime_data.get('confidence', 0.0)
                 row_with_indicators['is_transition'] = regime_data.get('is_transition', False)
+            else:
+                # Always provide regime fields with defaults to prevent None errors in strategies
+                row_with_indicators['regime'] = 'unknown'
+                row_with_indicators['regime_confidence'] = 0.0
+                row_with_indicators['is_transition'] = False
 
             # Step 3: Process the row with previous values and store it
             # This will add previous_* columns from the last stored row

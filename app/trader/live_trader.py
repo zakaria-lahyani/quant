@@ -1,5 +1,6 @@
 from typing import Optional, List, Dict, Any
 import logging
+import time
 
 from app.clients.mt5.client import MT5Client
 from app.clients.mt5.models.history import ClosedPosition
@@ -12,17 +13,19 @@ from app.utils.functions_helper import generate_magic_number
 
 
 class LiveTrader(BaseTrader):
-    def __init__(self, client: MT5Client, logger: Optional[logging.Logger] = None):
+    def __init__(self, client: MT5Client, logger: Optional[logging.Logger] = None, order_delay_seconds: float = 0.5):
         """
         Initialize LiveTrader with MT5 API clients.
 
         Args:
             client: MT5Client instance for trading operations
             logger: Optional logger for debugging
+            order_delay_seconds: Delay in seconds between submitting orders in a split position (default: 0.5)
         """
         super().__init__()
         self.client = client
         self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.order_delay_seconds = order_delay_seconds
 
     def get_current_price(self, symbol:str):
         price = self.client.symbols.get_symbol_price(symbol)
@@ -31,10 +34,11 @@ class LiveTrader(BaseTrader):
     def open_pending_order(self, trade: RiskEntryResult) -> List[Dict[str, Any]]:
         """
         Open multiple pending orders from a RiskEntryResult.
-        
+        Orders are submitted sequentially with a delay between each submission.
+
         Args:
             trade: RiskEntryResult containing multiple limit orders
-            
+
         Returns:
             List of responses from order creation
         """
@@ -43,7 +47,13 @@ class LiveTrader(BaseTrader):
         print(trade)
         print(trade.limit_orders)
 
-        for order in trade.limit_orders:
+        total_orders = len(trade.limit_orders)
+        self.logger.info(
+            f"Submitting {total_orders} orders sequentially "
+            f"(delay: {self.order_delay_seconds}s between orders)"
+        )
+
+        for idx, order in enumerate(trade.limit_orders, start=1):
             try:
                 # Determine order creation method based on order type
                 if order['order_type'] == 'BUY_LIMIT':
@@ -89,17 +99,22 @@ class LiveTrader(BaseTrader):
                 else:
                     self.logger.warning(f"Unknown order type: {order['order_type']}")
                     continue
-                    
+
                 results.append(result)
                 self.logger.info(
-                    f"Created {order['order_type']} order for {order['symbol']} "
+                    f"✓ [{idx}/{total_orders}] Created {order['order_type']} order for {order['symbol']} "
                     f"at {order['price']} with volume {order['volume']}"
                 )
-                
+
+                # Add delay between orders (except after the last order)
+                if idx < total_orders and self.order_delay_seconds > 0:
+                    self.logger.debug(f"Waiting {self.order_delay_seconds}s before next order...")
+                    time.sleep(self.order_delay_seconds)
+
             except Exception as e:
-                self.logger.error(f"Failed to create order: {e}")
+                self.logger.error(f"Failed to create order {idx}/{total_orders}: {e}")
                 results.append({"error": str(e), "order": order})
-                
+
         return results
 
     def get_pending_orders(self, symbol: Optional[str] = None) -> List[PendingOrder]:

@@ -30,6 +30,9 @@ class IndicatorCalculationConfig(BaseModel):
     enabled: bool = True
     recent_rows_limit: int = Field(default=6, ge=1)
     track_regime_changes: bool = True
+    store_indicators_in_redis: bool = False
+    redis_max_recent_rows: int = Field(default=50, ge=1)
+    redis_ttl_seconds: int = Field(default=3600, ge=60)
 
 
 class StrategyEvaluationConfig(BaseModel):
@@ -90,7 +93,9 @@ class LoggingConfig(BaseModel):
 
 
 class SymbolConfig(BaseModel):
-    symbol: str
+    symbol: str  # Display/internal name (e.g., XAUUSD)
+    broker_symbol: Optional[str] = None  # Broker-specific API name (e.g., XAUUSD.pro for ACG, XAUUSD for FTMO)
+    path_symbol: Optional[str] = None  # Path name for folders (e.g., xauusd) - lowercase, no special chars
     pip_value: float
     position_split: int
     scaling_type: str
@@ -98,6 +103,31 @@ class SymbolConfig(BaseModel):
     risk_per_group: float
     default_close_time: str
     timeframes: List[str]
+    order_delay_seconds: float = Field(default=0.5, ge=0.0, le=10.0, description="Delay in seconds between submitting split orders")
+
+    @field_validator("broker_symbol", mode="before")
+    @classmethod
+    def set_broker_symbol_default(cls, v, info):
+        """Default broker_symbol to symbol if not provided."""
+        if v is None and 'symbol' in info.data:
+            return info.data['symbol']
+        return v
+
+    @field_validator("path_symbol", mode="before")
+    @classmethod
+    def set_path_symbol_default(cls, v, info):
+        """Default path_symbol to lowercase symbol without special chars if not provided."""
+        if v is None and 'symbol' in info.data:
+            # Remove common suffixes like .pro, .raw, etc. and convert to lowercase
+            symbol = info.data['symbol']
+            path = symbol.lower()
+            # Remove common broker suffixes
+            for suffix in ['.pro', '.raw', '.i', '.a', '.cmd', '.ecn']:
+                if path.endswith(suffix):
+                    path = path[:-len(suffix)]
+                    break
+            return path
+        return v
 
 class TradingConfig(BaseModel):
     """Configuration for trading parameters."""
@@ -107,13 +137,15 @@ class TradingConfig(BaseModel):
     @field_validator("symbols")
     @classmethod
     def validate_symbols(cls, v: List[SymbolConfig]) -> List[SymbolConfig]:
-        """Validate symbols are not empty and normalize symbol names."""
+        """Validate symbols are not empty and normalize display symbol names."""
         if not v:
             raise ValueError("At least one symbol must be specified")
 
-        # Normalize symbol names to uppercase
+        # Normalize display symbol names to uppercase (for internal consistency)
+        # but preserve broker_symbol case (for API compatibility)
         for symbol_config in v:
             symbol_config.symbol = symbol_config.symbol.upper()
+            # broker_symbol and path_symbol are preserved as-is (set by validators)
 
         return v
 
@@ -213,6 +245,10 @@ class SystemConfig(BaseModel):
             "symbol": symbol,
             "timeframes": timeframes,
             "track_regime_changes": self.services.indicator_calculation.track_regime_changes,
+            "recent_rows_limit": self.services.indicator_calculation.recent_rows_limit,
+            "store_indicators_in_redis": self.services.indicator_calculation.store_indicators_in_redis,
+            "redis_max_recent_rows": self.services.indicator_calculation.redis_max_recent_rows,
+            "redis_ttl_seconds": self.services.indicator_calculation.redis_ttl_seconds,
         }
 
     def get_strategy_evaluation_config(self, symbol: str) -> Dict[str, Any]:

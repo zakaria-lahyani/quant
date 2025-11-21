@@ -14,6 +14,9 @@ services:
     enabled: true
     recent_rows_limit: 6  # number of recent rows to keep
     track_regime_changes: true  # track and publish regime changes
+    store_indicators_in_redis: true  # store computed indicators in Redis for monitoring
+    redis_max_recent_rows: 50  # number of recent indicator rows to keep in Redis
+    redis_ttl_seconds: 3600  # TTL for Redis indicator data (1 hour)
 
   strategy_evaluation:
     enabled: true
@@ -47,16 +50,10 @@ logging:
 
 # Trading configuration
 trading:
-  symbols: 
-    - symbol: BTCUSD
-      pip_value: 100
-      position_split: 2
-      scaling_type: equal
-      entry_spacing: 10
-      risk_per_group: 1000
-      default_close_time: 23:40:00+02:00
-      timeframes: ["1", "5", "15", "30", "60", "240"]  
-    - symbol: XAUUSD
+  symbols:
+    - symbol: XAUUSD  # Display name (used internally and in logs)
+      broker_symbol: XAUUSD.pro  # Exact broker API symbol name (case-sensitive)
+      path_symbol: xauusd  # Folder path name (auto-generated if not specified)
       pip_value: 100
       position_split: 4
       scaling_type: equal
@@ -64,6 +61,7 @@ trading:
       risk_per_group: 1000
       default_close_time: 23:50:00+02:00
       timeframes: ["1", "5", "15", "30", "60", "240"]
+      order_delay_seconds: 0.5  # Delay between submitting split orders (seconds)
 
 # Risk management
 risk:

@@ -46,9 +46,12 @@ class ExecutorBuilder:
         """
         if logger is None:
             logger = logging.getLogger('trade-executor')
-            
-        # Create trader
-        trader = LiveTrader(client, logger)
+
+        # Get order delay configuration (default to 0.5 seconds if not specified)
+        order_delay = getattr(config, 'ORDER_DELAY_SECONDS', 0.5)
+
+        # Create trader with order delay configuration
+        trader = LiveTrader(client, logger, order_delay_seconds=order_delay)
         
         # Create scaling and risk configuration
         scaling_config = ScalingConfig(
@@ -69,10 +72,14 @@ class ExecutorBuilder:
             pnl_calculator,
             logger
         )
+        # Get broker_symbol from config (defaults to SYMBOL if not present)
+        broker_symbol = getattr(config, 'BROKER_SYMBOL', config.SYMBOL)
+
         order_executor = OrderExecutor(
             trader,
             risk_calculator,
             config.SYMBOL,
+            broker_symbol,
             event_bus,
             logger
         )

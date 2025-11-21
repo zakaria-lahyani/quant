@@ -9,6 +9,7 @@ from app.clients.mt5.client import create_client_with_retry
 from app.data.data_manger import DataSourceManager
 from app.infrastructure.config_loader import AccountConfigLoader, LoadEnvironmentVariables
 from app.infrastructure.logging import LoggingManager
+from app.infrastructure.events import EventBusFactory
 from app.utils.date_helper import DateHelper
 from app.utils.load_component import load_strategies_for_symbol, load_all_components_for_symbols
 
@@ -90,6 +91,18 @@ def main():
 
         logger.info("Shared components initialized")
 
+        # Initialize Redis Event Bus (optional - only if Redis is available)
+        event_bus = None
+        try:
+            logger.info("Connecting to Redis event bus...")
+            event_bus = EventBusFactory.create_from_env(env_config, logger)
+            logger.info("Redis event bus connected")
+        except ImportError:
+            logger.warning("redis-py not installed. Event bus disabled. Install with: pip install redis")
+        except Exception as e:
+            logger.warning(f"Failed to connect to Redis event bus: {e}")
+            logger.warning("Continuing without event bus...")
+
         # Load components for all symbols
         symbol_components = load_all_components_for_symbols(
             config_path=config_path,
@@ -100,14 +113,39 @@ def main():
             logger=logger
         )
 
-        # Load system configuration
-        logger.info(f"\nLoading system configuration from {config_path}...")
+        logger.info(f"\n=== Components loaded for {len(symbol_components)} symbols ===\n")
 
+        # Create and start multi-symbol orchestrator
+        from app.orchestrator import MultiSymbolTradingOrchestrator
+
+        logger.info("Creating multi-symbol trading orchestrator...")
+        orchestrator = MultiSymbolTradingOrchestrator(
+            system_config=system_config,
+            symbol_components=symbol_components,
+            client=client,
+            data_source=data_source,
+            redis_event_bus=event_bus,
+            account_name=env_config.APP_NAME,
+            account_tag=env_config.APP_TAG,
+            logger=logger
+        )
+
+        # Run orchestrator with periodic health checks
+        logger.info("Starting trading orchestrator...\n")
+        orchestrator.run(check_interval=system_config.orchestrator.health_check_interval)
+
+    except KeyboardInterrupt:
+        logger.info("\nShutdown requested by user")
+        if 'orchestrator' in locals():
+            orchestrator.stop()
     except FileNotFoundError:
         logger.warning(f"Configuration file not found: {service_config_path}")
         logger.info("Using default configuration...")
-
-    print(system_config)
+    except Exception as e:
+        logger.error(f"Fatal error: {e}", exc_info=True)
+        if 'orchestrator' in locals():
+            orchestrator.stop()
+        raise
 
 
 if __name__ == "__main__":

@@ -1,0 +1,45 @@
+# RSI
+rsi:
+  period: 24
+  signal_period: 24
+
+
+# URSI
+ursi:
+  src: close
+  length: 19
+  smooth_length: 19
+
+# MACD
+macd:
+  fast: 16
+  slow: 30
+  signal: 12
+
+# SUPERTREND
+supertrend_fast:
+  period: 3
+  multiplier: 2.5
+
+supertrend_slow:
+  period: 3
+  multiplier: 3.0
+
+# ICHIMOKU
+ichimoku:
+  tenkan_period: 12
+  kijun_period: 26
+  senkou_b_period: 52
+  chikou_shift: 20
+
+# SAR
+sar:
+  acceleration: 0.01
+  max_acceleration: 0.1
+
+# AROON
+bb:
+  window: 10
+  num_std_dev: 2.0
+
+
