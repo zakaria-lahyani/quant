@@ -153,6 +153,9 @@ class EntryManager(EntryManagerInterface):
                 strategy_name, symbol, strategy.timeframes, direction
             )
             
+            # Check if this is a manual signal
+            is_manual = kwargs.get('is_manual', False)
+
             entry_decision = EntryDecision(
                 symbol=symbol,
                 strategy_name=strategy_name,
@@ -163,7 +166,8 @@ class EntryManager(EntryManagerInterface):
                 position_size=position_size,
                 stop_loss=stop_loss_result,
                 take_profit=take_profit_result,
-                decision_time=decision_time
+                decision_time=decision_time,
+                is_manual=is_manual
             )
             
             self.logger.info(
@@ -214,16 +218,23 @@ class EntryManager(EntryManagerInterface):
             strategy_name, symbol, strategy.timeframes, direction
         )
         
+        # Get optional parameters for manual exits
+        close_percent = kwargs.get('close_percent', 100.0)
+        is_manual = kwargs.get('is_manual', False)
+
         exit_decision = ExitDecision(
             symbol=symbol,
             strategy_name=strategy_name,
             magic=magic,
             direction=direction,
-            decision_time=decision_time
+            decision_time=decision_time,
+            close_percent=close_percent,
+            is_manual=is_manual
         )
-        
+
+        pct_text = f" ({close_percent}%)" if close_percent < 100 else ""
         self.logger.info(
-            f"Exit decision calculated: {strategy_name} {direction}"
+            f"Exit decision calculated: {strategy_name} {direction}{pct_text}"
         )
         
         return exit_decision
@@ -327,17 +338,19 @@ class EntryManager(EntryManagerInterface):
         strategy_results: Dict[str, Any],
         market_data: Dict[str, Union[deque, List[Dict[str, Any]]]],
         account_balance: Optional[float] = None,
+        is_manual: bool = False,
         **kwargs
     ) -> Trades:
         """
         Manage trades based on strategy evaluation results.
-        
+
         Args:
             strategy_results: Results from strategy evaluation
             market_data: Current market data (can be deques of Series or lists of dicts)
             account_balance: Available account balance
+            is_manual: True for manual signals (adds "Manual_" prefix to trade comments)
             **kwargs: Additional parameters
-            
+
         Returns:
             Trades object with entry and exit decisions
         """
@@ -379,8 +392,11 @@ class EntryManager(EntryManagerInterface):
             if hasattr(eval_result, 'exit') and eval_result.exit:
                 if eval_result.exit.long or eval_result.exit.short:
                     direction = "long" if eval_result.exit.long else "short"
+                    # Get close_percent from evaluation result (for manual exits)
+                    close_percent = getattr(eval_result, 'close_percent', 100.0)
                     exit_decision = self.calculate_exit_decision(
-                        strategy_name, self.symbol, direction, decision_time
+                        strategy_name, self.symbol, direction, decision_time,
+                        close_percent=close_percent, is_manual=is_manual
                     )
                     exits.append(exit_decision)
             
@@ -389,17 +405,19 @@ class EntryManager(EntryManagerInterface):
                 if eval_result.entry.long:
                     entry_decision = self.calculate_entry_decision(
                         strategy_name, self.symbol, "long", current_price,
-                        decision_time, market_data, account_balance, **kwargs
+                        decision_time, market_data, account_balance,
+                        is_manual=is_manual, **kwargs
                     )
                     entries.append(entry_decision)
-                
+
                 if eval_result.entry.short:
                     entry_decision = self.calculate_entry_decision(
                         strategy_name, self.symbol, "short", current_price,
-                        decision_time, market_data, account_balance, **kwargs
+                        decision_time, market_data, account_balance,
+                        is_manual=is_manual, **kwargs
                     )
                     entries.append(entry_decision)
-        
+
         return Trades(entries=entries, exits=exits)
     
     def _extract_current_price(

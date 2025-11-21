@@ -145,7 +145,8 @@ class RiskCalculator:
             weighted_avg_entry=sl_plan.details.get('weighted_avg_price'),
             stop_calculation_method=sl_plan.calculation_method,
             strategy_name=entry_decision.strategy_name,
-            magic=entry_decision.magic
+            magic=entry_decision.magic,
+            is_manual=getattr(entry_decision, 'is_manual', False)
         )
 
         self.logger.info(

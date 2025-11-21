@@ -62,8 +62,11 @@ class ExecutorBuilder:
         )
         risk_calculator = RiskCalculator(scaling_config)
         
+        # Get broker_symbol from config (defaults to SYMBOL if not present)
+        broker_symbol = getattr(config, 'BROKER_SYMBOL', config.SYMBOL)
+
         # Create components
-        exit_manager = ExitManager(trader, logger)
+        exit_manager = ExitManager(trader, config.SYMBOL, broker_symbol, logger)
         duplicate_filter = DuplicateFilter(logger)
         pnl_calculator = PnLCalculator(logger)
         risk_monitor = RiskMonitor(
@@ -72,8 +75,6 @@ class ExecutorBuilder:
             pnl_calculator,
             logger
         )
-        # Get broker_symbol from config (defaults to SYMBOL if not present)
-        broker_symbol = getattr(config, 'BROKER_SYMBOL', config.SYMBOL)
 
         order_executor = OrderExecutor(
             trader,

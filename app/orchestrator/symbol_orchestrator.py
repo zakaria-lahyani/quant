@@ -99,6 +99,8 @@ class SymbolOrchestrator:
         from app.orchestrator.services.indicator_calculation import IndicatorCalculationService
         from app.orchestrator.services.strategy_evaluation import StrategyEvaluationService
         from app.orchestrator.services.trade_execution import TradeExecutionService
+        from app.orchestrator.services.manual_signal_service import ManualSignalService
+        from app.infrastructure.events.manual_signal_store import ManualSignalStore
 
         # Get symbol-specific configuration
         timeframes = self.symbol_components.get('timeframes', [])
@@ -175,6 +177,43 @@ class SymbolOrchestrator:
             )
             self.services.append(execution_service)
             self.logger.info(f"  ✓ TradeExecutionService created")
+
+        # 5. Manual Signal Service (processes external/3rd party signals)
+        if self.system_config.services.manual_signal.enabled:
+            # Get Redis client
+            redis_client = None
+            if self.redis_event_bus and hasattr(self.redis_event_bus, '_client'):
+                redis_client = self.redis_event_bus._client
+
+            if redis_client:
+                # Create ManualSignalStore for this account
+                manual_signal_store = ManualSignalStore(
+                    redis_client=redis_client,
+                    account_name=self.account_name or "default",
+                    logger=logging.getLogger(f'manual-signal-store-{self.symbol.lower()}')
+                )
+
+                # Get manual signal config
+                ms_config = {
+                    'enabled': True,
+                    'poll_interval': self.system_config.services.manual_signal.poll_interval,
+                    'primary_timeframe': timeframes[0] if timeframes else '15'
+                }
+
+                manual_signal_service = ManualSignalService(
+                    symbol=self.symbol,
+                    manual_signal_store=manual_signal_store,
+                    indicator_processor=self.symbol_components['indicator_processor'],
+                    event_bus=self.event_bus,
+                    config=ms_config,
+                    logger=logging.getLogger(f'manual-signal-{self.symbol.lower()}')
+                )
+                self.services.append(manual_signal_service)
+                self.logger.info(f"  ✓ ManualSignalService created")
+            else:
+                self.logger.warning(
+                    f"  ✗ ManualSignalService not created - Redis not available"
+                )
 
         self.logger.info(f"Services initialized for {self.symbol}: {len(self.services)} services created")
 

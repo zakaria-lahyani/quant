@@ -53,6 +53,10 @@ class LiveTrader(BaseTrader):
             f"(delay: {self.order_delay_seconds}s between orders)"
         )
 
+        # Determine comment prefix based on signal source
+        comment_prefix = "Manual_" if getattr(trade, 'is_manual', False) else "Group_"
+        order_comment = f"{comment_prefix}{trade.group_id[:8]}"
+
         for idx, order in enumerate(trade.limit_orders, start=1):
             try:
                 # Determine order creation method based on order type
@@ -63,7 +67,7 @@ class LiveTrader(BaseTrader):
                         price=order['price'],
                         stop_loss=order.get('group_stop_loss'),  # Use group stop loss
                         take_profit=trade.take_profit.level if trade.take_profit else None,
-                        comment=f"Group_{trade.group_id[:8]}",
+                        comment=order_comment,
                         magic=order.get('magic')  # Use the magic number from the order
                     )
                 elif order['order_type'] == 'SELL_LIMIT':
@@ -73,7 +77,7 @@ class LiveTrader(BaseTrader):
                         price=order['price'],
                         stop_loss=order.get('group_stop_loss'),  # Use group stop loss
                         take_profit=trade.take_profit.level if trade.take_profit else None,
-                        comment=f"Group_{trade.group_id[:8]}",
+                        comment=order_comment,
                         magic=order.get('magic')  # Use the magic number from the order
                     )
                 elif order['order_type'] == 'BUY_STOP':
@@ -83,7 +87,7 @@ class LiveTrader(BaseTrader):
                         price=order['price'],
                         stop_loss=order.get('group_stop_loss'),
                         take_profit=trade.take_profit.level if trade.take_profit else None,
-                        comment=f"Group_{trade.group_id[:8]}",
+                        comment=order_comment,
                         magic=order.get('magic')  # Use the magic number from the order
                     )
                 elif order['order_type'] == 'SELL_STOP':
@@ -93,7 +97,7 @@ class LiveTrader(BaseTrader):
                         price=order['price'],
                         stop_loss=order.get('group_stop_loss'),
                         take_profit=trade.take_profit.level if trade.take_profit else None,
-                        comment=f"Group_{trade.group_id[:8]}",
+                        comment=order_comment,
                         magic=order.get('magic')  # Use the magic number from the order
                     )
                 else:

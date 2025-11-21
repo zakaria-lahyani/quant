@@ -267,11 +267,15 @@ class TradeExecutionService(TradingService):
                     'strategy': strategy_name
                 }
 
+            # Check if this is a manual signal
+            is_manual = metadata.get('is_manual', False)
+
             # Calculate entry/exit decisions with full risk management
             trades = self.entry_manager.manage_trades(
                 strategy_results=strategy_results,
                 market_data=market_data,
-                account_balance=account_balance
+                account_balance=account_balance,
+                is_manual=is_manual
             )
 
             if not trades.entries and not trades.exits:

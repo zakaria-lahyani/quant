@@ -28,6 +28,10 @@ services:
     execution_mode: "immediate"  # "immediate" or "batch"
     batch_size: 1  # only used in batch mode
 
+  manual_signal:
+    enabled: true
+    poll_interval: 1.0  # seconds between queue polls
+
 # EventBus configuration
 event_bus:
   mode: synchronous  # synchronous or asynchronous

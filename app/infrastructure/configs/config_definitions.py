@@ -51,6 +51,13 @@ class TradeExecutionConfig(BaseModel):
     batch_size: int = Field(default=1, ge=1)
 
 
+class ManualSignalConfig(BaseModel):
+    """Configuration for ManualSignalService."""
+
+    enabled: bool = False  # Disabled by default
+    poll_interval: float = Field(default=1.0, ge=0.1, description="Seconds between queue polls")
+
+
 class ServicesConfig(BaseModel):
     """Configuration for all services."""
 
@@ -63,6 +70,9 @@ class ServicesConfig(BaseModel):
     )
     trade_execution: TradeExecutionConfig = Field(
         default_factory=TradeExecutionConfig
+    )
+    manual_signal: ManualSignalConfig = Field(
+        default_factory=ManualSignalConfig
     )
 
 

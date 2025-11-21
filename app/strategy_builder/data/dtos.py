@@ -76,6 +76,7 @@ class EntryDecision:
     stop_loss: StopLossResult
     take_profit: TakeProfitResult
     decision_time: datetime
+    is_manual: bool = False  # True for manual signals, affects order comment prefix
 
 
 @dataclass
@@ -86,6 +87,8 @@ class ExitDecision:
     magic: int
     direction: Literal['long', 'short']
     decision_time: datetime
+    close_percent: float = 100.0  # Percentage of position to close (1-100)
+    is_manual: bool = False  # True for manual exit signals
 
 
 @dataclass

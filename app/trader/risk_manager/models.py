@@ -209,7 +209,7 @@ class PositionGroup:
 @dataclass
 class RiskEntryResult:
     """Result from processing an entry signal with risk management."""
-    
+
     group_id: str
     limit_orders: List[Dict[str, Any]]
     total_orders: int
@@ -226,6 +226,7 @@ class RiskEntryResult:
     stop_calculation_method: str  # 'monetary' or 'price_level'
     strategy_name: Optional[str] = None
     magic: Optional[int] = None
+    is_manual: bool = False  # True for manual signals, prefixes comment with "Manual_"
 
 
 @dataclass
