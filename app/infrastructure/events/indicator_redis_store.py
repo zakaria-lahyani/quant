@@ -22,14 +22,12 @@ class IndicatorRedisStore:
     """
     Stores indicator data and recent rows in Redis for real-time monitoring.
 
-    Data Structure:
-    - Hash: indicators:{symbol}:{timeframe}:latest - Latest indicator values
-    - List: indicators:{symbol}:{timeframe}:recent - Recent rows (configurable limit)
-    - Hash: indicators:{symbol}:metadata - Metadata about last update
+    Data Structure (keys prefixed with account name):
+    - List: {account}:{symbol}:{timeframe}:recent - Recent rows (latest at index 0)
+    - Hash: {account}:{symbol}:{timeframe}:metadata - Metadata about last update
+    - Hash: {account}:{symbol}:metadata - Symbol-level metadata
+    - Hash: {account}:__meta__ - Account identification metadata
     """
-
-    # Key for storing account metadata in each DB
-    ACCOUNT_META_KEY = "__account_meta__"
 
     def __init__(
         self,
@@ -49,7 +47,7 @@ class IndicatorRedisStore:
             symbol: Trading symbol (e.g., BTCUSD)
             max_recent_rows: Maximum number of recent rows to keep per timeframe
             ttl_seconds: Time-to-live for stored data in seconds (default: 1 hour)
-            account_name: Account/broker name for this Redis DB (e.g., "ACG", "FTMO")
+            account_name: Account/broker name for key prefix (e.g., "acg_daily", "ftmo_swing")
             account_tag: Account tag identifier
             logger: Optional logger instance
         """
@@ -57,13 +55,15 @@ class IndicatorRedisStore:
         self.symbol = symbol.upper()
         self.max_recent_rows = max_recent_rows
         self.ttl_seconds = ttl_seconds
-        self.account_name = account_name
+        self.account_name = account_name or "default"
         self.account_tag = account_tag
         self.logger = logger or logging.getLogger(__name__)
 
-        # Store account metadata in this DB if provided
-        if account_name or account_tag:
-            self._store_account_metadata()
+        # Key prefix includes account name
+        self._key_prefix = self.account_name
+
+        # Store account metadata
+        self._store_account_metadata()
 
     def store_indicator_row(
         self,
@@ -87,16 +87,8 @@ class IndicatorRedisStore:
             if 'time' not in row_dict:
                 row_dict['time'] = datetime.now().isoformat()
 
-            # Store latest indicators in a hash
-            latest_key = f"indicators:{self.symbol}:{timeframe}:latest"
-            self.redis_client.hset(
-                latest_key,
-                mapping=self._flatten_dict(row_dict)
-            )
-            self.redis_client.expire(latest_key, self.ttl_seconds)
-
-            # Store in recent rows list (FIFO with max length)
-            recent_key = f"indicators:{self.symbol}:{timeframe}:recent"
+            # Store in recent rows list (FIFO with max length, latest at index 0)
+            recent_key = f"{self._key_prefix}:{self.symbol}:{timeframe}:recent"
             row_json = json.dumps(row_dict, default=str)
             self.redis_client.lpush(recent_key, row_json)
             self.redis_client.ltrim(recent_key, 0, self.max_recent_rows - 1)
@@ -130,7 +122,7 @@ class IndicatorRedisStore:
             recent_rows: List of recent rows with indicators
         """
         try:
-            recent_key = f"indicators:{self.symbol}:{timeframe}:recent"
+            recent_key = f"{self._key_prefix}:{self.symbol}:{timeframe}:recent"
 
             # Clear existing data
             self.redis_client.delete(recent_key)
@@ -164,17 +156,14 @@ class IndicatorRedisStore:
             Dictionary of indicator values or None if not found
         """
         try:
-            latest_key = f"indicators:{self.symbol}:{timeframe}:latest"
-            data = self.redis_client.hgetall(latest_key)
+            recent_key = f"{self._key_prefix}:{self.symbol}:{timeframe}:recent"
+            # Get the first (most recent) row
+            row_json = self.redis_client.lindex(recent_key, 0)
 
-            if not data:
+            if not row_json:
                 return None
 
-            # Convert bytes to strings and parse JSON values
-            return {
-                k.decode('utf-8'): self._parse_value(v.decode('utf-8'))
-                for k, v in data.items()
-            }
+            return json.loads(row_json.decode('utf-8'))
 
         except Exception as e:
             self.logger.error(
@@ -198,7 +187,7 @@ class IndicatorRedisStore:
             List of dictionaries containing indicator values
         """
         try:
-            recent_key = f"indicators:{self.symbol}:{timeframe}:recent"
+            recent_key = f"{self._key_prefix}:{self.symbol}:{timeframe}:recent"
 
             if limit is None:
                 limit = self.max_recent_rows
@@ -236,14 +225,14 @@ class IndicatorRedisStore:
         """
         try:
             if timeframe:
-                meta_key = f"indicators:{self.symbol}:{timeframe}:metadata"
+                meta_key = f"{self._key_prefix}:{self.symbol}:{timeframe}:metadata"
                 data = self.redis_client.hgetall(meta_key)
                 return {
                     k.decode('utf-8'): v.decode('utf-8')
                     for k, v in data.items()
                 }
             else:
-                meta_key = f"indicators:{self.symbol}:metadata"
+                meta_key = f"{self._key_prefix}:{self.symbol}:metadata"
                 data = self.redis_client.hgetall(meta_key)
                 return {
                     k.decode('utf-8'): v.decode('utf-8')
@@ -265,13 +254,12 @@ class IndicatorRedisStore:
             if timeframe:
                 # Clear specific timeframe
                 keys = [
-                    f"indicators:{self.symbol}:{timeframe}:latest",
-                    f"indicators:{self.symbol}:{timeframe}:recent",
-                    f"indicators:{self.symbol}:{timeframe}:metadata"
+                    f"{self._key_prefix}:{self.symbol}:{timeframe}:recent",
+                    f"{self._key_prefix}:{self.symbol}:{timeframe}:metadata"
                 ]
             else:
                 # Clear all timeframes for this symbol
-                pattern = f"indicators:{self.symbol}:*"
+                pattern = f"{self._key_prefix}:{self.symbol}:*"
                 keys = list(self.redis_client.scan_iter(match=pattern))
 
             if keys:
@@ -299,24 +287,10 @@ class IndicatorRedisStore:
                 row_dict[key] = value
         return row_dict
 
-    def _flatten_dict(self, d: Dict[str, Any]) -> Dict[str, str]:
-        """Flatten dictionary values to strings for Redis hash storage."""
-        return {
-            str(k): json.dumps(v, default=str)
-            for k, v in d.items()
-        }
-
-    def _parse_value(self, value_str: str) -> Any:
-        """Parse a JSON string value."""
-        try:
-            return json.loads(value_str)
-        except json.JSONDecodeError:
-            return value_str
-
     def _update_metadata(self, timeframe: str, metadata: Dict[str, Any]) -> None:
         """Update metadata for a timeframe."""
         try:
-            meta_key = f"indicators:{self.symbol}:{timeframe}:metadata"
+            meta_key = f"{self._key_prefix}:{self.symbol}:{timeframe}:metadata"
             metadata_flat = {
                 'last_update': datetime.now().isoformat(),
                 **{k: str(v) for k, v in metadata.items()}
@@ -325,7 +299,7 @@ class IndicatorRedisStore:
             self.redis_client.expire(meta_key, self.ttl_seconds)
 
             # Also update symbol-level metadata
-            symbol_meta_key = f"indicators:{self.symbol}:metadata"
+            symbol_meta_key = f"{self._key_prefix}:{self.symbol}:metadata"
             self.redis_client.hset(
                 symbol_meta_key,
                 f"{timeframe}_last_update",
@@ -339,13 +313,14 @@ class IndicatorRedisStore:
     def _store_account_metadata(self) -> None:
         """Store account metadata in this Redis DB for identification."""
         try:
+            meta_key = f"{self._key_prefix}:__meta__"
             metadata = {
-                'account_name': self.account_name or 'Unknown',
+                'account_name': self.account_name,
                 'account_tag': self.account_tag or 'Unknown',
                 'created_at': datetime.now().isoformat(),
                 'last_active': datetime.now().isoformat()
             }
-            self.redis_client.hset(self.ACCOUNT_META_KEY, mapping=metadata)
+            self.redis_client.hset(meta_key, mapping=metadata)
             # No TTL - account metadata should persist
             self.logger.debug(
                 f"Stored account metadata: {self.account_name} ({self.account_tag})"
@@ -353,19 +328,41 @@ class IndicatorRedisStore:
         except Exception as e:
             self.logger.warning(f"Failed to store account metadata: {e}")
 
-    @classmethod
-    def get_account_info(cls, redis_client: redis.Redis) -> Dict[str, str]:
+    @staticmethod
+    def get_all_accounts(redis_client: redis.Redis) -> List[Dict[str, str]]:
         """
-        Get account information stored in this Redis DB.
+        Get all account information stored in Redis.
 
         Args:
             redis_client: Redis client instance
 
         Returns:
+            List of dictionaries with account_name, account_tag, etc.
+        """
+        accounts = []
+        try:
+            # Find all account meta keys
+            for key in redis_client.scan_iter(match="*:__meta__"):
+                data = redis_client.hgetall(key)
+                if data:
+                    accounts.append({
+                        k.decode('utf-8'): v.decode('utf-8')
+                        for k, v in data.items()
+                    })
+        except Exception:
+            pass
+        return accounts
+
+    def get_account_info(self) -> Dict[str, str]:
+        """
+        Get account information for this store instance.
+
+        Returns:
             Dictionary with account_name, account_tag, etc.
         """
         try:
-            data = redis_client.hgetall(cls.ACCOUNT_META_KEY)
+            meta_key = f"{self._key_prefix}:__meta__"
+            data = self.redis_client.hgetall(meta_key)
             if data:
                 return {
                     k.decode('utf-8'): v.decode('utf-8')
@@ -373,13 +370,14 @@ class IndicatorRedisStore:
                 }
         except Exception:
             pass
-        return {'account_name': 'Unknown', 'account_tag': 'Unknown'}
+        return {'account_name': self.account_name, 'account_tag': 'Unknown'}
 
     def update_last_active(self) -> None:
         """Update the last_active timestamp in account metadata."""
         try:
+            meta_key = f"{self._key_prefix}:__meta__"
             self.redis_client.hset(
-                self.ACCOUNT_META_KEY,
+                meta_key,
                 'last_active',
                 datetime.now().isoformat()
             )

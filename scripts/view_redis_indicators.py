@@ -2,24 +2,24 @@
 Utility script to view indicator data stored in Redis.
 
 This script connects to Redis and displays the latest computed indicators
-and recent rows for all symbols and timeframes.
+and recent rows for all accounts, symbols, and timeframes.
+
+Key Structure: {account}:{symbol}:{timeframe}:recent
 
 Usage:
     python scripts/view_redis_indicators.py
-    python scripts/view_redis_indicators.py --symbol BTCUSD
-    python scripts/view_redis_indicators.py --symbol BTCUSD --timeframe 15
+    python scripts/view_redis_indicators.py --account acg_daily
+    python scripts/view_redis_indicators.py --account acg_daily --symbol XAUUSD
+    python scripts/view_redis_indicators.py --account acg_daily --symbol XAUUSD --timeframe 15
     python scripts/view_redis_indicators.py --recent 10
 """
 
 import argparse
 import json
 import redis
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
 from datetime import datetime
 from tabulate import tabulate
-
-
-ACCOUNT_META_KEY = "__account_meta__"
 
 
 def connect_redis(host: str = "localhost", port: int = 6379, db: int = 0) -> redis.Redis:
@@ -34,26 +34,33 @@ def connect_redis(host: str = "localhost", port: int = 6379, db: int = 0) -> red
         exit(1)
 
 
-def get_account_info(client: redis.Redis) -> Dict[str, str]:
-    """Get account metadata from this Redis DB."""
+def get_all_accounts(client: redis.Redis) -> List[Dict[str, str]]:
+    """Get all account metadata from Redis."""
+    accounts = []
     try:
-        data = client.hgetall(ACCOUNT_META_KEY)
-        if data:
-            return {
-                k.decode('utf-8'): v.decode('utf-8')
-                for k, v in data.items()
-            }
+        # Find all account meta keys (pattern: {account}:__meta__)
+        for key in client.scan_iter(match="*:__meta__"):
+            key_str = key.decode('utf-8')
+            account_name = key_str.split(':')[0]
+            data = client.hgetall(key)
+            if data:
+                account_info = {
+                    k.decode('utf-8'): v.decode('utf-8')
+                    for k, v in data.items()
+                }
+                account_info['key_prefix'] = account_name
+                accounts.append(account_info)
     except Exception:
         pass
-    return {'account_name': 'Unknown', 'account_tag': 'Unknown'}
+    return accounts
 
 
-def get_all_symbols(client: redis.Redis) -> List[str]:
-    """Get list of all symbols with indicator data."""
-    pattern = "indicators:*:*:latest"
+def get_symbols_for_account(client: redis.Redis, account: str) -> List[str]:
+    """Get list of all symbols for an account."""
+    pattern = f"{account}:*:*:recent"
     keys = list(client.scan_iter(match=pattern))
 
-    symbols = set()
+    symbols: Set[str] = set()
     for key in keys:
         key_str = key.decode('utf-8')
         parts = key_str.split(':')
@@ -63,44 +70,38 @@ def get_all_symbols(client: redis.Redis) -> List[str]:
     return sorted(list(symbols))
 
 
-def get_timeframes_for_symbol(client: redis.Redis, symbol: str) -> List[str]:
+def get_timeframes_for_symbol(client: redis.Redis, account: str, symbol: str) -> List[str]:
     """Get list of timeframes for a symbol."""
-    pattern = f"indicators:{symbol}:*:latest"
+    pattern = f"{account}:{symbol}:*:recent"
     keys = list(client.scan_iter(match=pattern))
 
-    timeframes = set()
+    timeframes: Set[str] = set()
     for key in keys:
         key_str = key.decode('utf-8')
         parts = key_str.split(':')
         if len(parts) >= 3:
             timeframes.add(parts[2])
 
-    return sorted(list(timeframes))
+    return sorted(list(timeframes), key=lambda x: int(x) if x.isdigit() else 0)
 
 
-def get_latest_indicators(client: redis.Redis, symbol: str, timeframe: str) -> Optional[Dict[str, Any]]:
-    """Get latest indicator values."""
-    key = f"indicators:{symbol}:{timeframe}:latest"
-    data = client.hgetall(key)
+def get_latest_indicators(client: redis.Redis, account: str, symbol: str, timeframe: str) -> Optional[Dict[str, Any]]:
+    """Get latest indicator values (from first item in recent list)."""
+    key = f"{account}:{symbol}:{timeframe}:recent"
+    row_json = client.lindex(key, 0)
 
-    if not data:
+    if not row_json:
         return None
 
-    result = {}
-    for k, v in data.items():
-        key_str = k.decode('utf-8')
-        value_str = v.decode('utf-8')
-        try:
-            result[key_str] = json.loads(value_str)
-        except json.JSONDecodeError:
-            result[key_str] = value_str
-
-    return result
+    try:
+        return json.loads(row_json.decode('utf-8'))
+    except json.JSONDecodeError:
+        return None
 
 
-def get_recent_rows(client: redis.Redis, symbol: str, timeframe: str, limit: int = 10) -> List[Dict[str, Any]]:
+def get_recent_rows(client: redis.Redis, account: str, symbol: str, timeframe: str, limit: int = 10) -> List[Dict[str, Any]]:
     """Get recent indicator rows."""
-    key = f"indicators:{symbol}:{timeframe}:recent"
+    key = f"{account}:{symbol}:{timeframe}:recent"
     rows_json = client.lrange(key, 0, limit - 1)
 
     rows = []
@@ -114,9 +115,9 @@ def get_recent_rows(client: redis.Redis, symbol: str, timeframe: str, limit: int
     return rows
 
 
-def get_metadata(client: redis.Redis, symbol: str, timeframe: str) -> Dict[str, Any]:
+def get_metadata(client: redis.Redis, account: str, symbol: str, timeframe: str) -> Dict[str, Any]:
     """Get metadata about stored indicators."""
-    key = f"indicators:{symbol}:{timeframe}:metadata"
+    key = f"{account}:{symbol}:{timeframe}:metadata"
     data = client.hgetall(key)
 
     return {
@@ -137,19 +138,19 @@ def format_value(value: Any) -> str:
         return str(value)[:50]  # Truncate long values
 
 
-def display_latest_indicators(client: redis.Redis, symbol: str, timeframe: str):
+def display_latest_indicators(client: redis.Redis, account: str, symbol: str, timeframe: str):
     """Display latest indicators for a symbol/timeframe."""
     print(f"\n{'='*80}")
-    print(f"Latest Indicators: {symbol} {timeframe}")
+    print(f"Latest Indicators: [{account}] {symbol} {timeframe}")
     print(f"{'='*80}")
 
-    indicators = get_latest_indicators(client, symbol, timeframe)
+    indicators = get_latest_indicators(client, account, symbol, timeframe)
     if not indicators:
         print("  No data available")
         return
 
     # Get metadata
-    metadata = get_metadata(client, symbol, timeframe)
+    metadata = get_metadata(client, account, symbol, timeframe)
     if metadata:
         print(f"\nLast Update: {metadata.get('last_update', 'Unknown')}")
         print(f"Indicators: {metadata.get('num_indicators', 'Unknown')}")
@@ -177,13 +178,13 @@ def display_latest_indicators(client: redis.Redis, symbol: str, timeframe: str):
             print(f"  ... and {len(other_fields) - 20} more fields")
 
 
-def display_recent_rows(client: redis.Redis, symbol: str, timeframe: str, limit: int = 10):
+def display_recent_rows(client: redis.Redis, account: str, symbol: str, timeframe: str, limit: int = 10):
     """Display recent rows with indicators."""
     print(f"\n{'='*80}")
-    print(f"Recent Rows: {symbol} {timeframe} (last {limit})")
+    print(f"Recent Rows: [{account}] {symbol} {timeframe} (last {limit})")
     print(f"{'='*80}")
 
-    rows = get_recent_rows(client, symbol, timeframe, limit)
+    rows = get_recent_rows(client, account, symbol, timeframe, limit)
     if not rows:
         print("  No data available")
         return
@@ -207,97 +208,123 @@ def display_recent_rows(client: redis.Redis, symbol: str, timeframe: str, limit:
     print("\n" + tabulate(table_data, headers=headers, tablefmt='grid'))
 
 
-def display_all_symbols(client: redis.Redis):
-    """Display overview of all symbols and timeframes."""
-    # Get account info first
-    account_info = get_account_info(client)
-    account_name = account_info.get('account_name', 'Unknown')
-    account_tag = account_info.get('account_tag', 'Unknown')
-    last_active = account_info.get('last_active', 'Unknown')
+def display_all_accounts(client: redis.Redis):
+    """Display overview of all accounts, symbols, and timeframes."""
+    accounts = get_all_accounts(client)
 
-    print(f"\n{'='*80}")
-    print(f"Account: {account_name} ({account_tag})")
-    if last_active != 'Unknown':
-        try:
-            dt = datetime.fromisoformat(last_active)
-            print(f"Last Active: {dt.strftime('%Y-%m-%d %H:%M:%S')}")
-        except:
-            print(f"Last Active: {last_active}")
-    print(f"{'='*80}\n")
-
-    symbols = get_all_symbols(client)
-    if not symbols:
-        print("No indicator data found in Redis")
+    if not accounts:
+        print("\nNo accounts found in Redis")
         return
 
-    table_data = []
-    for symbol in symbols:
-        timeframes = get_timeframes_for_symbol(client, symbol)
+    print(f"\n{'='*80}")
+    print("Redis Indicator Storage Overview")
+    print(f"{'='*80}\n")
 
-        # Get last update for each timeframe
-        tf_info = []
-        for tf in timeframes:
-            metadata = get_metadata(client, symbol, tf)
-            last_update = metadata.get('last_update', 'Unknown')
-            if last_update != 'Unknown':
-                try:
-                    dt = datetime.fromisoformat(last_update)
-                    last_update = dt.strftime('%H:%M:%S')
-                except:
-                    pass
-            tf_info.append(f"{tf}({last_update})")
+    for account_info in accounts:
+        account = account_info.get('key_prefix', 'Unknown')
+        account_name = account_info.get('account_name', account)
+        account_tag = account_info.get('account_tag', 'Unknown')
+        last_active = account_info.get('last_active', 'Unknown')
 
-        table_data.append([
-            symbol,
-            len(timeframes),
-            ", ".join(tf_info)
-        ])
+        print(f"\n--- Account: {account_name} ({account_tag}) ---")
+        if last_active != 'Unknown':
+            try:
+                dt = datetime.fromisoformat(last_active)
+                print(f"Last Active: {dt.strftime('%Y-%m-%d %H:%M:%S')}")
+            except:
+                print(f"Last Active: {last_active}")
 
-    print(tabulate(table_data, headers=['Symbol', 'Timeframes', 'Details'], tablefmt='grid'))
+        symbols = get_symbols_for_account(client, account)
+        if not symbols:
+            print("  No symbol data")
+            continue
+
+        table_data = []
+        for symbol in symbols:
+            timeframes = get_timeframes_for_symbol(client, account, symbol)
+
+            # Get last update for each timeframe
+            tf_info = []
+            for tf in timeframes:
+                metadata = get_metadata(client, account, symbol, tf)
+                last_update = metadata.get('last_update', 'Unknown')
+                if last_update != 'Unknown':
+                    try:
+                        dt = datetime.fromisoformat(last_update)
+                        last_update = dt.strftime('%H:%M:%S')
+                    except:
+                        pass
+                tf_info.append(f"{tf}({last_update})")
+
+            table_data.append([
+                symbol,
+                len(timeframes),
+                ", ".join(tf_info)
+            ])
+
+        print(tabulate(table_data, headers=['Symbol', 'Timeframes', 'Details'], tablefmt='grid'))
 
 
 def main():
     parser = argparse.ArgumentParser(description='View indicator data stored in Redis')
     parser.add_argument('--host', default='localhost', help='Redis host (default: localhost)')
     parser.add_argument('--port', type=int, default=6379, help='Redis port (default: 6379)')
-    parser.add_argument('--db', type=int, default=1, help='Redis database number (default: 0)')
-    parser.add_argument('--symbol', help='Symbol to view (e.g., BTCUSD)')
+    parser.add_argument('--db', type=int, default=1, help='Redis database number (default: 1)')
+    parser.add_argument('--account', help='Account name to view (e.g., acg_daily)')
+    parser.add_argument('--symbol', help='Symbol to view (e.g., XAUUSD)')
     parser.add_argument('--timeframe', help='Timeframe to view (e.g., 15)')
     parser.add_argument('--recent', type=int, default=10, help='Number of recent rows to show (default: 10)')
-    parser.add_argument('--list', action='store_true', help='List all symbols and timeframes')
+    parser.add_argument('--list', action='store_true', help='List all accounts, symbols and timeframes')
 
     args = parser.parse_args()
 
     # Connect to Redis
     client = connect_redis(args.host, args.port, args.db)
 
-    # Display overview if no specific symbol requested
-    if args.list or (not args.symbol and not args.timeframe):
-        display_all_symbols(client)
+    # Display overview if no specific account/symbol requested
+    if args.list or (not args.account and not args.symbol and not args.timeframe):
+        display_all_accounts(client)
         return
 
-    # Get symbol (or all symbols)
-    if args.symbol:
-        symbols = [args.symbol.upper()]
+    # Determine accounts to display
+    if args.account:
+        accounts = [args.account]
     else:
-        symbols = get_all_symbols(client)
+        account_infos = get_all_accounts(client)
+        accounts = [a.get('key_prefix', 'default') for a in account_infos]
 
-    # Display data for each symbol
-    for symbol in symbols:
-        # Get timeframes (or all timeframes)
-        if args.timeframe:
-            timeframes = [args.timeframe]
+    if not accounts:
+        print("No accounts found")
+        return
+
+    # Display data for each account
+    for account in accounts:
+        # Get symbols (or specified symbol)
+        if args.symbol:
+            symbols = [args.symbol.upper()]
         else:
-            timeframes = get_timeframes_for_symbol(client, symbol)
+            symbols = get_symbols_for_account(client, account)
 
-        if not timeframes:
-            print(f"\nNo data found for {symbol}")
+        if not symbols:
+            print(f"\nNo data found for account {account}")
             continue
 
-        # Display data for each timeframe
-        for timeframe in timeframes:
-            display_latest_indicators(client, symbol, timeframe)
-            display_recent_rows(client, symbol, timeframe, args.recent)
+        # Display data for each symbol
+        for symbol in symbols:
+            # Get timeframes (or specified timeframe)
+            if args.timeframe:
+                timeframes = [args.timeframe]
+            else:
+                timeframes = get_timeframes_for_symbol(client, account, symbol)
+
+            if not timeframes:
+                print(f"\nNo data found for {account}:{symbol}")
+                continue
+
+            # Display data for each timeframe
+            for timeframe in timeframes:
+                display_latest_indicators(client, account, symbol, timeframe)
+                display_recent_rows(client, account, symbol, timeframe, args.recent)
 
 
 if __name__ == "__main__":
