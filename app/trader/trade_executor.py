@@ -6,8 +6,9 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from app.strategy_builder.data.dtos import Trades
+from app.strategy_builder.data.dtos import Trades, EntryDecision
 from app.utils.date_helper import DateHelper
+from app.infrastructure.events.runtime_control_store import RuntimeControlStore
 
 from .trading_context import TradingContext, MarketState
 from .components.exit_manager import ExitManager
@@ -37,11 +38,12 @@ class TradeExecutor:
         order_executor: OrderExecutor,
         restriction_manager: RestrictionManager,
         symbol: str,
+        runtime_controls: Optional[RuntimeControlStore] = None,
         logger: Optional[logging.Logger] = None
     ):
         """
         Initialize with pre-configured components.
-        
+
         Args:
             trader: Live trader for market data
             exit_manager: Handles position exits
@@ -50,6 +52,7 @@ class TradeExecutor:
             order_executor: Executes orders
             restriction_manager: Manages trading restrictions
             symbol: Trading symbol
+            runtime_controls: Optional runtime control store for trading toggles
             logger: Optional logger
         """
         self.trader = trader
@@ -59,8 +62,9 @@ class TradeExecutor:
         self.order_executor = order_executor
         self.restriction_manager = restriction_manager
         self.symbol = symbol
+        self.runtime_controls = runtime_controls
         self.logger = logger or logging.getLogger('trade-executor-v3')
-        
+
         # Trading context
         self.context = TradingContext()
         
@@ -170,9 +174,9 @@ class TradeExecutor:
         if not trades.entries:
             self.logger.debug("No entry signals to process")
             return
-            
+
         self.logger.info(f"Processing {len(trades.entries)} entry signals")
-        
+
         # Check if trading is allowed
         if not self.context.can_trade():
             reasons = []
@@ -182,19 +186,63 @@ class TradeExecutor:
                 reasons.append("risk breach")
             self.logger.warning(f"Entry processing blocked: {', '.join(reasons)}")
             return
-            
+
         # Filter duplicates
         filtered_entries = self.duplicate_filter.filter_entries(
             trades.entries,
             self.context.market_state.open_positions,
             self.context.market_state.pending_orders
         )
-        
+
+        if not filtered_entries:
+            self.logger.info("All entries filtered out (duplicates)")
+            return
+
+        # Apply runtime controls if available
+        if self.runtime_controls:
+            filtered_entries = self._apply_runtime_controls(filtered_entries)
+
         if filtered_entries:
             self.logger.info(f"Executing {len(filtered_entries)} filtered entries")
             self.order_executor.execute_entries(filtered_entries)
         else:
-            self.logger.info("All entries filtered out (duplicates)")
+            self.logger.info("All entries blocked by runtime controls")
+
+    def _apply_runtime_controls(self, entries: list[EntryDecision]) -> list[EntryDecision]:
+        """
+        Apply runtime controls to filter entries.
+
+        Checks:
+        1. Master trading switch (blocks all)
+        2. Auto-trading switch (blocks non-manual only)
+        3. Per-strategy toggles
+
+        Args:
+            entries: List of entry decisions to filter
+
+        Returns:
+            Filtered list of entries that pass runtime controls
+        """
+        allowed_entries = []
+
+        for entry in entries:
+            is_manual = getattr(entry, 'is_manual', False)
+            strategy_name = entry.strategy_name
+
+            can_execute, reason = self.runtime_controls.can_execute_trade(
+                strategy_name=strategy_name,
+                is_manual=is_manual
+            )
+
+            if can_execute:
+                allowed_entries.append(entry)
+            else:
+                self.logger.warning(
+                    f"Entry blocked by runtime control: {strategy_name} "
+                    f"{'(manual)' if is_manual else '(auto)'} - {reason}"
+                )
+
+        return allowed_entries
             
     def get_context(self) -> TradingContext:
         """Get current trading context."""

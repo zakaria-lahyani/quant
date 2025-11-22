@@ -18,19 +18,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
+  
   # ============================================================================
-  # Trading App - ACG Daily Account
+  # Trading App - Funded next
   # ============================================================================
-  trading-app-acg-daily:
+  trading-app-funded_next:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: trading-app-acg-daily
+    container_name: trading-app-funded_next
     environment:
       # App identification
-      - APP_NAME=acg_daily
-      - APP_TAG=ACG_DAILY
+      - APP_NAME=funded_next
+      - APP_TAG=FUNDED_NEXT
 
       # Redis connection
       - REDIS_HOST=redis
@@ -39,12 +39,12 @@ services:
       - REDIS_PASSWORD=
 
       # MT5 API
-      - API_BASE_URL=http://host.docker.internal:8000/mt5
+      - API_BASE_URL=http://host.docker.internal:8003/mt5
       - API_TIMEOUT=10
       - ACCOUNT_TYPE=daily
 
       # Configuration
-      - CONF_FOLDER_PATH=configs/acg_daily
+      - CONF_FOLDER_PATH=configs/funded_next
       - CONF_ACCOUNT=services.yaml
 
       # Trading mode
@@ -54,8 +54,8 @@ services:
       - NEWS_RESTRICTION_DURATION=2
       - MARKET_CLOSE_RESTRICTION_DURATION=10
     volumes:
-      - ./configs/acg_daily:/app/configs/acg_daily:ro
-      - ./logs/acg_daily:/app/logs
+      - ./configs/funded_next:/app/configs/funded_next:ro
+      - ./logs/funded_next:/app/logs
     networks:
       - trading-network
     depends_on:
@@ -67,6 +67,55 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  # ============================================================================
+  # Trading App - ACG Daily Account
+  # ============================================================================
+  # trading-app-acg-daily:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: trading-app-acg-daily
+  #   environment:
+  #     # App identification
+  #     - APP_NAME=acg_daily
+  #     - APP_TAG=ACG_DAILY
+
+  #     # Redis connection
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #     - REDIS_DB=1
+  #     - REDIS_PASSWORD=
+
+  #     # MT5 API
+  #     - API_BASE_URL=http://host.docker.internal:8000/mt5
+  #     - API_TIMEOUT=10
+  #     - ACCOUNT_TYPE=daily
+
+  #     # Configuration
+  #     - CONF_FOLDER_PATH=configs/acg_daily
+  #     - CONF_ACCOUNT=services.yaml
+
+  #     # Trading mode
+  #     - TRADE_MODE=live
+
+  #     # Restrictions
+  #     - NEWS_RESTRICTION_DURATION=2
+  #     - MARKET_CLOSE_RESTRICTION_DURATION=10
+  #   volumes:
+  #     - ./configs/acg_daily:/app/configs/acg_daily:ro
+  #     - ./logs/acg_daily:/app/logs
+  #   networks:
+  #     - trading-network
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   # ============================================================================
   # Trading App - FTMO Swing Account (Commented Out)

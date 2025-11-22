@@ -10,6 +10,7 @@ from .event_types import TradeEvent, TradeEventType
 from .event_bus_factory import EventBusFactory
 from .indicator_redis_store import IndicatorRedisStore
 from .manual_signal_store import ManualSignalStore, ManualSignal
+from .runtime_control_store import RuntimeControlStore
 
 __all__ = [
     'RedisEventBus',
@@ -19,4 +20,5 @@ __all__ = [
     'IndicatorRedisStore',
     'ManualSignalStore',
     'ManualSignal',
+    'RuntimeControlStore',
 ]

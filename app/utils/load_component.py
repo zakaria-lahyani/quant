@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from pathlib import Path
 
 from app.data.data_manger import DataSourceManager
@@ -8,6 +8,7 @@ from app.entry_manager.manager import EntryManager
 from app.indicators.indicator_processor import IndicatorProcessor
 from app.infrastructure.config_loader import YamlConfigurationManager, LoadEnvironmentVariables
 from app.infrastructure.configs.config_definitions import SystemConfig
+from app.infrastructure.events.runtime_control_store import RuntimeControlStore
 from app.regime.regime_manager import RegimeManager
 from app.trader.executor_builder import ExecutorBuilder
 
@@ -111,7 +112,8 @@ def load_all_components_for_symbols(
     system_config: SystemConfig,
     client: Any,
     data_source: DataSourceManager,
-    logger: logging.Logger
+    logger: logging.Logger,
+    runtime_controls: Optional[RuntimeControlStore] = None
 ) -> Dict[str, Dict[str, Any]]:
     """
     Load all components for all symbols.
@@ -123,6 +125,7 @@ def load_all_components_for_symbols(
         client: MT5 client
         data_source: Data source manager
         logger: Logger instance
+        runtime_controls: Optional runtime control store for trading toggles
 
     Returns:
         Dictionary mapping symbol to component dictionary
@@ -240,6 +243,7 @@ def load_all_components_for_symbols(
             config=executor_config,
             client=client,
             event_bus=None,  # Will be injected later by orchestrator
+            runtime_controls=runtime_controls,
             logger=logging.getLogger(f'trade-executor-{symbolConfig.symbol.lower()}')
         )
 

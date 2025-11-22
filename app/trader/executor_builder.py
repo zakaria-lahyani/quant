@@ -7,6 +7,7 @@ from typing import Optional
 
 from app.trader.risk_manager.models import ScalingConfig
 from app.trader.risk_manager.risk_calculator import RiskCalculator
+from app.infrastructure.events.runtime_control_store import RuntimeControlStore
 
 from .live_trader import LiveTrader
 from .components.exit_manager import ExitManager
@@ -30,17 +31,20 @@ class ExecutorBuilder:
     def build_from_config(
         config,
         client,
-        event_bus = None,
+        event_bus=None,
+        runtime_controls: Optional[RuntimeControlStore] = None,
         logger: Optional[logging.Logger] = None
     ) -> TradeExecutor:
         """
         Build a TradeExecutor from configuration.
-        
+
         Args:
             config: Environment configuration
             client: MT5 client
+            event_bus: Optional event bus for publishing events
+            runtime_controls: Optional runtime control store for trading toggles
             logger: Optional logger
-            
+
         Returns:
             Configured TradeExecutorV3 instance
         """
@@ -111,6 +115,7 @@ class ExecutorBuilder:
             order_executor=order_executor,
             restriction_manager=restriction_manager,
             symbol=config.SYMBOL,
+            runtime_controls=runtime_controls,
             logger=logger
         )
     
@@ -123,12 +128,13 @@ class ExecutorBuilder:
         order_executor: OrderExecutor,
         restriction_manager: RestrictionManager,
         symbol: str,
+        runtime_controls: Optional[RuntimeControlStore] = None,
         logger: Optional[logging.Logger] = None
     ) -> TradeExecutor:
         """
         Build a TradeExecutor with pre-configured components.
         Useful for testing or custom configurations.
-        
+
         Args:
             trader: Live trader instance
             exit_manager: Exit manager instance
@@ -137,8 +143,9 @@ class ExecutorBuilder:
             order_executor: Order executor instance
             restriction_manager: Restriction manager instance
             symbol: Trading symbol
+            runtime_controls: Optional runtime control store for trading toggles
             logger: Optional logger
-            
+
         Returns:
             Configured TradeExecutorV3 instance
         """
@@ -150,5 +157,6 @@ class ExecutorBuilder:
             order_executor=order_executor,
             restriction_manager=restriction_manager,
             symbol=symbol,
+            runtime_controls=runtime_controls,
             logger=logger
         )

@@ -1,0 +1,72 @@
+# STOCHASTIC
+stochrsi_slow:
+  rsi_period: 10
+  stochrsi_period: 14
+  k_smooth: 4
+  d_smooth: 3
+
+stochrsi_fast:
+  rsi_period: 7
+  stochrsi_period: 21
+  k_smooth: 3
+  d_smooth: 4
+
+# RSI
+rsi_fast:
+  period: 7
+  signal_period: 7
+
+rsi_slow:
+  period: 9
+  signal_period: 9
+
+# URSI
+ursi_fast:
+  src: close
+  length: 5
+  smooth_length: 5
+
+ursi_slow:
+  src: close
+  length: 21
+  smooth_length: 21
+
+# MACD
+macd:
+  fast: 8
+  slow: 20
+  signal: 6
+
+# SUPERTREND
+supertrend_fast:
+  period: 2
+  multiplier: 1.0
+
+supertrend:
+  period: 3
+  multiplier: 1.0
+
+supertrend_slow:
+  period: 5
+  multiplier: 1.0
+
+# ICHIMOKU
+ichimoku:
+  tenkan_period: 9
+  kijun_period: 35
+  senkou_b_period: 45
+  chikou_shift: 20
+
+# SAR
+sar:
+  acceleration: 0.03
+  max_acceleration: 0.1
+
+# AROON
+aroon:
+  period: 5
+
+# ADX
+adx:
+  period: 7
+

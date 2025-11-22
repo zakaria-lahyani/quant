@@ -1,0 +1,45 @@
+# Refactored strategy with clean config structure
+name: "anchors-transitions-and-htf-bias"
+meta:
+  version: "1.4.0"
+  author: "you"
+  description: "Demonstrates YAML anchors, state transitions, and daily bias gating."
+  created_at: "2025-08-10T09:25:00Z"
+
+
+timeframes: ["1"]
+
+entry:
+  long:
+    mode: all
+    conditions:
+      - signal: "close"
+        operator: ">"
+        value: "previous_close"
+        timeframe: "1"
+  short:
+    mode: all
+    conditions:
+      - signal: "close"
+        operator: "<"
+        value: "previous_close"
+        timeframe: "1"
+
+
+
+risk:
+    position_sizing:
+      type: percentage
+      value: 20.0
+    sl:
+      type: monetary
+      value: 500.0
+    tp:
+        type: multi_target
+        targets:
+          - value: 5.0        # 5% profit target
+            percent: 80       # Close 80% of position
+            move_stop: true   # Move stop to breakeven
+          - value: 15.0       # 15% profit target
+            percent: 20       # Keep 20% for big move
+            move_stop: false

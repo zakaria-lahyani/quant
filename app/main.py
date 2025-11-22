@@ -10,6 +10,7 @@ from app.data.data_manger import DataSourceManager
 from app.infrastructure.config_loader import AccountConfigLoader, LoadEnvironmentVariables
 from app.infrastructure.logging import LoggingManager
 from app.infrastructure.events import EventBusFactory
+from app.infrastructure.events.runtime_control_store import RuntimeControlStore
 from app.utils.date_helper import DateHelper
 from app.utils.load_component import load_strategies_for_symbol, load_all_components_for_symbols
 
@@ -91,17 +92,32 @@ def main():
 
         logger.info("Shared components initialized")
 
-        # Initialize Redis Event Bus (optional - only if Redis is available)
+        # Initialize Redis Event Bus and Runtime Controls (optional - only if Redis is available)
         event_bus = None
+        runtime_controls = None
         try:
             logger.info("Connecting to Redis event bus...")
             event_bus = EventBusFactory.create_from_env(env_config, logger)
             logger.info("Redis event bus connected")
+
+            # Create runtime control store using the same Redis connection
+            import redis
+            redis_client = redis.Redis(
+                host=env_config.REDIS_HOST,
+                port=int(env_config.REDIS_PORT),
+                db=int(env_config.REDIS_DB)
+            )
+            runtime_controls = RuntimeControlStore(
+                redis_client=redis_client,
+                account_name=env_config.APP_NAME,
+                logger=logging.getLogger('runtime-controls')
+            )
+            logger.info(f"Runtime controls initialized for account: {env_config.APP_NAME}")
         except ImportError:
             logger.warning("redis-py not installed. Event bus disabled. Install with: pip install redis")
         except Exception as e:
             logger.warning(f"Failed to connect to Redis event bus: {e}")
-            logger.warning("Continuing without event bus...")
+            logger.warning("Continuing without event bus and runtime controls...")
 
         # Load components for all symbols
         symbol_components = load_all_components_for_symbols(
@@ -110,10 +126,24 @@ def main():
             system_config=system_config,
             client=client,
             data_source=data_source,
-            logger=logger
+            logger=logger,
+            runtime_controls=runtime_controls
         )
 
         logger.info(f"\n=== Components loaded for {len(symbol_components)} symbols ===\n")
+
+        # Initialize runtime controls with discovered strategies
+        if runtime_controls:
+            # Collect all strategy names from loaded components
+            all_strategy_names = set()
+            for symbol, components in symbol_components.items():
+                strategy_engine = components.get('strategy_engine')
+                if strategy_engine:
+                    all_strategy_names.update(strategy_engine.list_available_strategies())
+
+            # Initialize defaults (only sets if not already set in Redis)
+            runtime_controls.initialize_defaults(list(all_strategy_names))
+            logger.info(f"Runtime controls initialized with {len(all_strategy_names)} strategies: {sorted(all_strategy_names)}")
 
         # Create and start multi-symbol orchestrator
         from app.orchestrator import MultiSymbolTradingOrchestrator
