@@ -49,9 +49,12 @@ docker-compose.yml
 logs/
 *.log
 
-# Environment files (will be mounted as volumes)
+# Environment files (root level - will be mounted as volumes)
 .env
 .env.*
+
+# Env files folder (not needed in container, mounted via env_file)
+envs/
 
 # Test files
 tests/

@@ -1,7 +1,50 @@
+# ============================================================================
+# Trading System - Docker Compose Configuration
+# ============================================================================
+# Uses env files from ./envs/ folder for clean account configuration
+#
+# To add a new account:
+#   1. Create envs/{account_name}.env (copy from envs/.env.example)
+#   2. Create configs/{account_name}/ folder with services.yaml
+#   3. Add a new service below using the x-trading-app template
+#
+# Usage:
+#   docker-compose up -d                    # Start all enabled services
+#   docker-compose up -d trading-app-funded-next  # Start specific account
+#   docker-compose logs -f trading-app-funded-next  # View logs
+
+# ============================================================================
+# Shared configuration templates (YAML anchors)
+# ============================================================================
+x-trading-app: &trading-app-base
+  build:
+    context: .
+    dockerfile: Dockerfile
+  networks:
+    - trading-network
+  depends_on:
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+
+x-redis-env: &redis-env
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_DB: 1
+  REDIS_PASSWORD: ""
+
+# ============================================================================
+# Services
+# ============================================================================
 services:
-  # ============================================================================
-  # Redis - Shared Event Bus for all trading app instances
-  # ============================================================================
+  # ==========================================================================
+  # Redis - Shared Event Bus
+  # ==========================================================================
   redis:
     image: redis:7-alpine
     container_name: trading-redis
@@ -18,170 +61,54 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  
-  # ============================================================================
-  # Trading App - Funded next
-  # ============================================================================
-  trading-app-funded_next:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: trading-app-funded_next
+
+  # ==========================================================================
+  # Trading App - Funded Next
+  # ==========================================================================
+  trading-app-funded-next:
+    <<: *trading-app-base
+    container_name: trading-app-funded-next
+    env_file:
+      - ./envs/funded_next.env
     environment:
-      # App identification
-      - APP_NAME=funded_next
-      - APP_TAG=FUNDED_NEXT
-
-      # Redis connection
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=1
-      - REDIS_PASSWORD=
-
-      # MT5 API
-      - API_BASE_URL=http://host.docker.internal:8003/mt5
-      - API_TIMEOUT=10
-      - ACCOUNT_TYPE=daily
-
-      # Configuration
-      - CONF_FOLDER_PATH=configs/funded_next
-      - CONF_ACCOUNT=services.yaml
-
-      # Trading mode
-      - TRADE_MODE=live
-
-      # Restrictions
-      - NEWS_RESTRICTION_DURATION=2
-      - MARKET_CLOSE_RESTRICTION_DURATION=10
+      <<: *redis-env
     volumes:
       - ./configs/funded_next:/app/configs/funded_next:ro
       - ./logs/funded_next:/app/logs
-    networks:
-      - trading-network
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-  # ============================================================================
-  # Trading App - ACG Daily Account
-  # ============================================================================
+  # ==========================================================================
+  # Trading App - ACG Daily
+  # ==========================================================================
   # trading-app-acg-daily:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
+  #   <<: *trading-app-base
   #   container_name: trading-app-acg-daily
+  #   env_file:
+  #     - ./envs/acg_daily.env
   #   environment:
-  #     # App identification
-  #     - APP_NAME=acg_daily
-  #     - APP_TAG=ACG_DAILY
-
-  #     # Redis connection
-  #     - REDIS_HOST=redis
-  #     - REDIS_PORT=6379
-  #     - REDIS_DB=1
-  #     - REDIS_PASSWORD=
-
-  #     # MT5 API
-  #     - API_BASE_URL=http://host.docker.internal:8000/mt5
-  #     - API_TIMEOUT=10
-  #     - ACCOUNT_TYPE=daily
-
-  #     # Configuration
-  #     - CONF_FOLDER_PATH=configs/acg_daily
-  #     - CONF_ACCOUNT=services.yaml
-
-  #     # Trading mode
-  #     - TRADE_MODE=live
-
-  #     # Restrictions
-  #     - NEWS_RESTRICTION_DURATION=2
-  #     - MARKET_CLOSE_RESTRICTION_DURATION=10
+  #     <<: *redis-env
   #   volumes:
   #     - ./configs/acg_daily:/app/configs/acg_daily:ro
   #     - ./logs/acg_daily:/app/logs
-  #   networks:
-  #     - trading-network
-  #   depends_on:
-  #     redis:
-  #       condition: service_healthy
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
 
-  # ============================================================================
-  # Trading App - FTMO Swing Account (Commented Out)
-  # ============================================================================
+  # ==========================================================================
+  # Trading App - FTMO Swing
+  # ==========================================================================
   # trading-app-ftmo-swing:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
+  #   <<: *trading-app-base
   #   container_name: trading-app-ftmo-swing
+  #   env_file:
+  #     - ./envs/ftmo_swing.env
   #   environment:
-  #     # App identification
-  #     - APP_NAME=ftmo_swing
-  #     - APP_TAG=FTMO_SWING
-  #
-  #     # Redis connection
-  #     - REDIS_HOST=redis
-  #     - REDIS_PORT=6379
-  #     - REDIS_DB=2
-  #     - REDIS_PASSWORD=
-  #
-  #     # MT5 API
-  #     - API_BASE_URL=http://host.docker.internal:8000/mt5
-  #     - API_TIMEOUT=10
-  #     - ACCOUNT_TYPE=swing
-  #
-  #     # Configuration
-  #     - CONF_FOLDER_PATH=configs/ftmo_swing
-  #     - CONF_ACCOUNT=services.yaml
-  #
-  #     # Trading mode
-  #     - TRADE_MODE=live
-  #
-  #     # Restrictions
-  #     - NEWS_RESTRICTION_DURATION=2
-  #     - MARKET_CLOSE_RESTRICTION_DURATION=10
+  #     <<: *redis-env
+  #     REDIS_DB: 2  # Different DB for isolation
   #   volumes:
   #     - ./configs/ftmo_swing:/app/configs/ftmo_swing:ro
   #     - ./logs/ftmo_swing:/app/logs
-  #   networks:
-  #     - trading-network
-  #   depends_on:
-  #     redis:
-  #       condition: service_healthy
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
 
-  # ============================================================================
-  # Redis Commander - Web UI for Redis (Optional)
-  # ============================================================================
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: redis-commander
-    environment:
-      - REDIS_HOSTS=local:redis:6379
-    ports:
-      - "8081:8081"
-    networks:
-      - trading-network
-    depends_on:
-      - redis
-    restart: unless-stopped
 
+# ============================================================================
+# Networks & Volumes
+# ============================================================================
 networks:
   trading-network:
     driver: bridge
