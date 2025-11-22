@@ -28,6 +28,10 @@ services:
     execution_mode: "immediate"  # "immediate" or "batch"
     batch_size: 1  # only used in batch mode
 
+  manual_signal:
+    enabled: true
+    poll_interval: 1.0  # seconds between queue polls
+
 # EventBus configuration
 event_bus:
   mode: synchronous  # synchronous or asynchronous
@@ -52,8 +56,8 @@ logging:
 trading:
   symbols:
     - symbol: BTCUSD  # Display name (used internally and in logs)
-      # broker_symbol: BTCUSD  # Optional: defaults to symbol if not specified
-      # path_symbol: btcusd  # Optional: defaults to lowercase symbol without suffixes
+      broker_symbol: BTCUSD  # Optional: defaults to symbol if not specified
+      path_symbol: btcusd  # Optional: defaults to lowercase symbol without suffixes
       pip_value: 100
       position_split: 2
       scaling_type: equal
@@ -63,8 +67,8 @@ trading:
       timeframes: ["1", "5", "15", "30", "60", "240"]
       order_delay_seconds: 0.5  # Delay between submitting split orders (seconds)
     - symbol: XAUUSD  # Display name (used internally and in logs)
-      # broker_symbol: XAUUSD  # Optional: defaults to symbol if not specified
-      # path_symbol: xauusd  # Optional: defaults to lowercase symbol without suffixes
+      broker_symbol: XAUUSD  # Optional: defaults to symbol if not specified
+      path_symbol: xauusd  # Optional: defaults to lowercase symbol without suffixes
       pip_value: 100
       position_split: 4
       scaling_type: equal
