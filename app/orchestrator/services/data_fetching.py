@@ -177,14 +177,15 @@ class DataFetchingService(TradingService):
                     # Get the most recent closed candle
                     candle = data.iloc[-self.candle_index] if len(data) >= self.candle_index else data.iloc[-1]
 
-                    # Convert to dictionary
+                    # Convert to dictionary - use preserved original datetime
                     candle_dict = {
                         'time': candle.name,  # Index is timestamp
+                        'candle_time': candle['candle_time_original'],  # Original candle datetime from MT5 API
                         'open': float(candle['open']),
                         'high': float(candle['high']),
                         'low': float(candle['low']),
                         'close': float(candle['close']),
-                        'volume': float(candle['volume']) if 'volume' in candle else 0.0
+                        'volume': float(candle['tick_volume']) if 'tick_volume' in candle else 0.0
                     }
 
                     return candle_dict

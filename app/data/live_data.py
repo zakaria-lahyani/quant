@@ -38,6 +38,9 @@ class LiveDataSource(DataSourceInterface):
         if df.empty:
             return df
 
+        # Preserve original datetime string before pandas conversion
+        df["candle_time_original"] = df["time"]
+        
         df["time"] = pd.to_datetime(df["time"])
 
         # Get the row with the max time
@@ -64,6 +67,7 @@ class LiveDataSource(DataSourceInterface):
         df = pd.DataFrame(bars_dict)
 
         if not df.empty:
+            df["candle_time_original"] = df["time"]
             df["time"] = pd.to_datetime(df["time"])
 
         return df
@@ -74,4 +78,3 @@ class LiveDataSource(DataSourceInterface):
             if tf.value == timeframe_value:
                 return tf.name
         raise ValueError(f"Invalid timeframe value: {timeframe_value}")
-
