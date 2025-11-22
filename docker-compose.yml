@@ -79,31 +79,31 @@ services:
   # ==========================================================================
   # Trading App - ACG Daily
   # ==========================================================================
-  # trading-app-acg-daily:
-  #   <<: *trading-app-base
-  #   container_name: trading-app-acg-daily
-  #   env_file:
-  #     - ./envs/acg_daily.env
-  #   environment:
-  #     <<: *redis-env
-  #   volumes:
-  #     - ./configs/acg_daily:/app/configs/acg_daily:ro
-  #     - ./logs/acg_daily:/app/logs
+  trading-app-acg-daily:
+    <<: *trading-app-base
+    container_name: trading-app-acg-daily
+    env_file:
+      - ./envs/acg_daily.env
+    environment:
+      <<: *redis-env
+    volumes:
+      - ./configs/acg_daily:/app/configs/acg_daily:ro
+      - ./logs/acg_daily:/app/logs
 
   # ==========================================================================
   # Trading App - FTMO Swing
   # ==========================================================================
-  # trading-app-ftmo-swing:
-  #   <<: *trading-app-base
-  #   container_name: trading-app-ftmo-swing
-  #   env_file:
-  #     - ./envs/ftmo_swing.env
-  #   environment:
-  #     <<: *redis-env
-  #     REDIS_DB: 2  # Different DB for isolation
-  #   volumes:
-  #     - ./configs/ftmo_swing:/app/configs/ftmo_swing:ro
-  #     - ./logs/ftmo_swing:/app/logs
+  trading-app-ftmo-swing:
+    <<: *trading-app-base
+    container_name: trading-app-ftmo-swing
+    env_file:
+      - ./envs/ftmo_swing.env
+    environment:
+      <<: *redis-env
+      REDIS_DB: 2  # Different DB for isolation
+    volumes:
+      - ./configs/ftmo_swing:/app/configs/ftmo_swing:ro
+      - ./logs/ftmo_swing:/app/logs
 
 
 # ============================================================================
