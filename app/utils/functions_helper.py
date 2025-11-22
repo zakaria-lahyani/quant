@@ -73,7 +73,7 @@ def generate_magic_number(
         position_type:str = ""
 ) -> int:
     timeframe = "_".join(str(x) for x in timeframes)
-    unique_str = f"{strategy_name}:{symbol}:{timeframe}"
+    unique_str = f"{strategy_name}:{symbol}:{timeframe}:{position_type}"
     hash_object = hashlib.md5(unique_str.encode())
     hex_digest = hash_object.hexdigest()
 

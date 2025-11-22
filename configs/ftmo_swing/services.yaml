@@ -61,7 +61,7 @@ trading:
       pip_value: 100
       position_split: 2
       scaling_type: equal
-      entry_spacing: 10
+      entry_spacing: 100
       risk_per_group: 1000
       default_close_time: 23:40:00+02:00
       timeframes: ["1", "5", "15", "30", "60", "240"]
